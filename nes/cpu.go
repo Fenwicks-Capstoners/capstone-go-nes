@@ -19,8 +19,8 @@ type CPU struct {
 	DF               bool                        // decimal flag
 	OF               bool                        // overflow flag
 	NF               bool                        // negative flag
-	cycles           int                         //number of cycles left in current instruction
-	operand          uint16                      // the operand, sometimes a single byte, sometimes a 2 byte address
+	Cycles           int                         //number of cycles left in current instruction
+	Operand          uint16                      // the operand, sometimes a single byte, sometimes a 2 byte address
 	instructionTable [256]instructionAndAddrMode //maps first instruction byte to instruction function
 }
 
@@ -52,12 +52,12 @@ func (a *CPU) populateInstructionTable() {
 }
 
 func (cpu *CPU) GetOperand() uint16 {
-	return cpu.operand
+	return cpu.Operand
 }
 
 // Returns 2 bytes: addr and addr + 1
 // swaps bytes due to little endian encoding, returns 16 bit number
-func (cpu *CPU) get2Bytes(addr uint16) uint16 {
+func (cpu *CPU) Get2Bytes(addr uint16) uint16 {
 	lowerByte := uint16(cpu.Bus.GetByte(addr))
 	upperByte := uint16(cpu.Bus.GetByte(addr + 1))
 	return (upperByte << 8) | lowerByte
@@ -73,16 +73,16 @@ func (cpu *CPU) implied() bool {
 func (cpu *CPU) indexIndirect() bool {
 	operandAddr := cpu.Bus.GetByte(cpu.PC)
 	cpu.PC++
-	cpu.operand = cpu.get2Bytes(uint16(operandAddr + cpu.X))
+	cpu.Operand = cpu.Get2Bytes(uint16(operandAddr + cpu.X))
 	return false
 }
 func (cpu *CPU) zeroPage() bool {
-	cpu.operand = uint16(cpu.Bus.GetByte(cpu.PC))
+	cpu.Operand = uint16(cpu.Bus.GetByte(cpu.PC))
 	cpu.PC++
 	return false
 }
 func (cpu *CPU) immediate() bool {
-	cpu.operand = uint16(cpu.Bus.GetByte(cpu.PC))
+	cpu.Operand = uint16(cpu.Bus.GetByte(cpu.PC))
 	cpu.PC++
 	return false
 }
@@ -91,7 +91,7 @@ func (cpu *CPU) accumulator() bool {
 	return false
 }
 func (cpu *CPU) absolute() bool {
-	cpu.operand = cpu.get2Bytes(cpu.PC) //gets the 2 byte address operand
+	cpu.Operand = cpu.Get2Bytes(cpu.PC) //gets the 2 byte address operand
 	cpu.PC += 2
 	return false
 }
@@ -101,44 +101,44 @@ func (cpu *CPU) relative() bool {
 	cpu.PC++
 	isNeg := offset < 0
 	if isNeg {
-		cpu.operand = cpu.PC - uint16(-1*offset)
+		cpu.Operand = cpu.PC - uint16(-1*offset)
 	} else {
-		cpu.operand = cpu.PC + uint16(offset)
+		cpu.Operand = cpu.PC + uint16(offset)
 	}
 	return false
 }
 func (cpu *CPU) indirectIndex() bool {
 	indirectAddr := cpu.Bus.GetByte(cpu.PC)
 	cpu.PC += 2
-	absAddr := cpu.get2Bytes(uint16(indirectAddr))
-	cpu.operand = absAddr + uint16(cpu.Y)
+	absAddr := cpu.Get2Bytes(uint16(indirectAddr))
+	cpu.Operand = absAddr + uint16(cpu.Y)
 	return false
 }
 func (cpu *CPU) zeroPageX() bool {
-	cpu.operand = uint16(cpu.X + cpu.Bus.GetByte(cpu.PC)) //since both oeprands are uint8 it will drop the carry
+	cpu.Operand = uint16(cpu.X + cpu.Bus.GetByte(cpu.PC)) //since both oeprands are uint8 it will drop the carry
 	cpu.PC++
 	return false
 }
 func (cpu *CPU) zeroPageY() bool {
-	cpu.operand = uint16(cpu.Y + cpu.Bus.GetByte(cpu.PC)) //since both oeprands are uint8 it will drop the carry
+	cpu.Operand = uint16(cpu.Y + cpu.Bus.GetByte(cpu.PC)) //since both oeprands are uint8 it will drop the carry
 	cpu.PC++
 	return false
 }
 func (cpu *CPU) absoluteX() bool {
-	absAddr := cpu.get2Bytes(cpu.PC)
-	cpu.operand = absAddr + uint16(cpu.X)
+	absAddr := cpu.Get2Bytes(cpu.PC)
+	cpu.Operand = absAddr + uint16(cpu.X)
 	cpu.PC += 2
 	return (absAddr&0x00FF)+uint16(cpu.X) > 0xFF // return true if there was a carry
 }
 func (cpu *CPU) absoluteY() bool {
-	absAddr := cpu.get2Bytes(cpu.PC)
-	cpu.operand = absAddr + uint16(cpu.Y)
+	absAddr := cpu.Get2Bytes(cpu.PC)
+	cpu.Operand = absAddr + uint16(cpu.Y)
 	cpu.PC += 2
 	return (absAddr&0x00FF)+uint16(cpu.Y) > 0xFF // return true if there was a carry
 
 }
 func (cpu *CPU) indirect() bool {
-	cpu.operand = cpu.get2Bytes(cpu.get2Bytes(cpu.PC + 1))
+	cpu.Operand = cpu.Get2Bytes(cpu.Get2Bytes(cpu.PC + 1))
 	cpu.PC += 2
 	return false
 }
@@ -332,12 +332,12 @@ func (cpu *CPU) tya() {
 }
 
 func (cpu *CPU) Reset() {
-	cpu.PC = cpu.get2Bytes(0xFFFC)
+	cpu.PC = cpu.Get2Bytes(0xFFFC)
 }
 
 // Cycles the cpu
 func (cpu *CPU) Clock() {
-	if cpu.cycles == 0 {
+	if cpu.Cycles == 0 {
 		//decode instruction
 		instruction := cpu.instructionTable[cpu.Bus.GetByte(cpu.PC)]
 		//increment program counter
@@ -349,6 +349,6 @@ func (cpu *CPU) Clock() {
 
 	} else {
 		//otherwise don't do anything and decrement cycles
-		cpu.cycles--
+		cpu.Cycles--
 	}
 }
