@@ -1,0 +1,7 @@
+package nes
+
+import "syscall/js"
+
+func CreateJSBinding(bindedName string, function func(this js.Value, inputs []js.Value) interface{}) {
+	js.Global().Set(bindedName, js.FuncOf(function))
+}
