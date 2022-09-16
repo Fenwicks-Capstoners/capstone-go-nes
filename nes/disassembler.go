@@ -48,7 +48,7 @@ func DiassembleInstruction(bus *BUS, i uint16) string {
 	instMem := bus.getSlice(i)
 	instr := opcodeNameTable[instMem[0]]
 	_, operand := instr.addrMode(0, instMem)
-	return fmt.Sprintf("%04X\t%s %s", i, instr.name, operand)
+	return fmt.Sprintf("0x%04X:\t%s %s", i, instr.name, operand)
 }
 
 func Disassemble(pathToBinary string) {

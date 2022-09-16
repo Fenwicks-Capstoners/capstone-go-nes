@@ -35,7 +35,7 @@ func loadBinary(path string) bool {
 	return true
 }
 
-func boolToUint16(x bool) uint16 {
+func boolToUint8(x bool) uint8 {
 	if x {
 		return 1
 	} else {
@@ -43,72 +43,117 @@ func boolToUint16(x bool) uint16 {
 	}
 }
 
-// cli print command
-func printCmd(args []string) {
-	if len(args) == 1 {
+func printMemCmd(args []string) {
+	if len(args) < 2 {
+		fmt.Println("Missing required argument.")
+		return
+	}
+	if len(args) > 2 {
+		fmt.Println("Too many arguments provided.")
+		return
+	}
+	var address uint16
+	//get address
+	if strings.HasPrefix(args[1], "0x") {
+		val, error := strconv.ParseUint(args[1][2:], 16, 16)
+		if error != nil {
+			fmt.Println(args[1] + " is not a valid number. Format: 0x1234")
+			return
+		}
+		address = uint16(val)
+	} else if strings.ToUpper(args[1]) == "PC" {
+		address = cpu.PC
+	} else {
 		fmt.Println("Missing required argument")
 		return
 	}
-	var target string
-	var value uint16
-	if len(args) == 2 {
-		target = args[1]
+	//get format
+	if len(args[0]) == 1 {
+		fmt.Printf("%s:\t%d\n", args[1], cpu.Bus.GetByte(address))
+		return
+	} else if strings.HasPrefix(args[0], "x/") && len(args[0]) >= 3 {
+		//get format specifier
+		var format = "%d"
+		if args[0][len(args[0])-1] == 'x' || args[0][len(args[0])-1] == 'X' {
+			format = "%02X"
+		} else if args[0][2] == 'i' {
+			fmt.Printf("%s:\t%s\n", args[1], nes.DiassembleInstruction(bus, address))
+			return
+		} else if args[0][len(args[0])-1] < '0' || args[0][len(args[0])-1] > '9' {
+			fmt.Println("Invalid format specifier")
+			return
+		}
+		num := args[0][2:len(args[0])] //number of bytes to print
+		if args[0][len(args[0])-1] == 'x' || args[0][len(args[0])-1] == 'X' {
+			num = num[:len(num)-1]
+		}
+		numBytes, err := strconv.ParseInt(num, 10, 32)
+		if err != nil {
+			fmt.Println("Invalid number of bytes specified")
+			return
+		}
+		value := ""
+		for i := 0; i < int(numBytes); i++ {
+			value += fmt.Sprintf(format+" ", cpu.Bus.GetByte(address+uint16(i)))
+		}
+		fmt.Printf("0x%04X-0x%04X:\t%s\n", address, address+uint16(numBytes), value)
+
 	} else {
-		target = args[2]
+		fmt.Printf("%s:\t%d\n", args[1], cpu.Bus.GetByte(address))
 	}
+}
 
-	switch strings.ToLower(target) {
-	case "pc":
-		value = cpu.PC
-	case "x":
-		value = uint16(cpu.X)
-	case "y":
-		value = uint16(cpu.Y)
-	case "a":
-		value = uint16(cpu.A)
-	case "s":
-		value = uint16(cpu.S)
-	case "cf":
-		value = boolToUint16(cpu.CF)
-	case "zf":
-		value = boolToUint16(cpu.ZF)
-	case "if":
-		value = boolToUint16(cpu.IF)
-	case "df":
-		value = boolToUint16(cpu.DF)
-	case "of":
-		value = boolToUint16(cpu.OF)
-	case "nf":
-		value = boolToUint16(cpu.NF)
-	case "operand":
-		value = cpu.Operand
-	default:
-		if strings.HasPrefix(strings.ToLower(target), "0x") {
-			v, error := strconv.ParseUint(target[2:], 16, 16)
-			if error != nil {
-				fmt.Println(target + " is not a valid number " + error.Error())
-				return
-			}
-			value = uint16(v)
-
-		} else {
-			fmt.Println("Cannot print", target)
+// Prints cpu register by name
+// command is p <register name>
+func printCmd(args []string) {
+	if len(args) < 2 {
+		fmt.Println("Missing required argument.")
+		return
+	}
+	if len(args) > 2 {
+		fmt.Println("Too many arguments provided.")
+		return
+	}
+	format := "%d"
+	if strings.HasPrefix(args[0], "p/") && len(args[0]) >= 3 {
+		switch strings.ToLower(args[0][2:]) {
+		case "x":
+			format = "%02X"
+		default:
+			fmt.Println("Invalid format specifier. Valid Option: 'x'")
 			return
 		}
 	}
-
-	format := "%X"
-	if len(args) > 2 {
-		format = args[1]
+	var value uint8
+	switch strings.ToUpper(args[1]) {
+	case "PC":
+		fmt.Printf("%04X\n", cpu.PC)
+		return
+	case "X":
+		value = cpu.X
+	case "Y":
+		value = cpu.Y
+	case "A":
+		value = cpu.A
+	case "S":
+		value = cpu.S
+	case "CF":
+		value = boolToUint8(cpu.CF)
+	case "ZF":
+		value = boolToUint8(cpu.ZF)
+	case "IF":
+		value = boolToUint8(cpu.IF)
+	case "DF":
+		value = boolToUint8(cpu.DF)
+	case "OF":
+		value = boolToUint8(cpu.OF)
+	case "NF":
+		value = boolToUint8(cpu.NF)
+	default:
+		fmt.Println("Can't print " + args[1])
+		return
 	}
-	if format == "-i" {
-		fmt.Println(nes.DiassembleInstruction(bus, value))
-	} else if format == "-16" {
-		fmt.Printf("%s:\t%04X\n", target, cpu.Get2Bytes(value))
-
-	} else {
-		fmt.Printf(target+":\t"+format+"\n", cpu.Bus.GetByte(value))
-	}
+	fmt.Printf("%s:\t"+format+"\n", strings.ToUpper(args[1]), value)
 }
 
 // uses disassembler to print the current instruction pointed to by the program counter
@@ -138,30 +183,33 @@ func main() {
 	fmt.Println("Program Loaded.\nAwaiting Input...")
 	scanner := bufio.NewScanner(os.Stdin)
 	input := ""
-	for input != "quit" {
+	for {
 		scanner.Scan()
 		input = scanner.Text()
 		tokens := strings.Fields(input)
 		if len(tokens) == 0 {
 			continue
 		}
-		switch tokens[0] {
-		case "clear":
-			fmt.Print("\033[H\033[2J")
-		case "print":
+		if tokens[0] == "p" || strings.HasPrefix(tokens[0], "p/") {
 			printCmd(tokens)
-		case "nc":
-			cpu.Clock()
-			printCurrentInstr()
-		case "ni":
+		} else if tokens[0] == "x" || strings.HasPrefix(tokens[0], "x/") {
+			printMemCmd(tokens)
+		} else if tokens[0] == "clear" {
+			fmt.Print("\033[H\033[2J")
+		} else if tokens[0] == "ni" {
 			cpu.Clock()
 			for cpu.Cycles > 0 {
 				cpu.Clock()
 			}
 			printCurrentInstr()
-		case "cur":
+		} else if tokens[0] == "clock" {
+			cpu.Clock()
 			printCurrentInstr()
-		default:
+		} else if tokens[0] == "quit" {
+			os.Exit(0)
+		} else if tokens[0] == "cur" {
+			printCurrentInstr()
+		} else {
 			fmt.Println("Invalid Command")
 		}
 
