@@ -14,6 +14,7 @@ import (
 var bus = nes.CreateBus()
 var cpu = nes.CreateCPU(bus)
 
+// loads binary specified by path into memory
 func loadBinary(path string) bool {
 
 	file, error := os.Open(path)
@@ -35,6 +36,7 @@ func loadBinary(path string) bool {
 	return true
 }
 
+// Converts a bool to a uint8
 func boolToUint8(x bool) uint8 {
 	if x {
 		return 1
@@ -43,68 +45,140 @@ func boolToUint8(x bool) uint8 {
 	}
 }
 
+// returns if a character (byte) is a digit or not
+func IsDigit(c byte) bool {
+	return c >= '0' && c <= '9'
+}
+
+// Returns the printf format specifier (or i for an instruction), the number of bytes to print (or instructions) or an error
+func getOutputFormatAndSize(formatSpecifier string) (string, int, error) {
+	if len(formatSpecifier) == 1 {
+		return "%d", 1, nil
+	}
+	formatSpecifier = strings.ToLower(formatSpecifier)
+	if len(formatSpecifier) < 3 || formatSpecifier[1] != '/' {
+		return "", 0, fmt.Errorf("invalid format specifier")
+	}
+	numberAndFormat := formatSpecifier[2:]
+	numberCharacters := ""
+	var formatString string
+	var format byte = 'd'
+	for i, char := range []byte(numberAndFormat) {
+		if IsDigit(char) {
+			numberCharacters += string(char)
+		} else {
+			format = numberAndFormat[i]
+			break
+		}
+	}
+	switch format {
+	case 'x':
+		formatString = "%02X"
+	case 'b':
+		formatString = "%08b"
+	case 'd':
+		formatString = "%d"
+	case 'i':
+		formatString = "i"
+	default:
+		return "", 0, fmt.Errorf("invalid format. Only x, b, or d are valid")
+	}
+	numBytes := 1
+	if len(numberCharacters) > 0 {
+		num, err := strconv.ParseInt(numberCharacters, 10, 0)
+		if err != nil || num < 1 {
+			return "", 0, fmt.Errorf("invalid number of bytes specified")
+		}
+		numBytes = int(num)
+	}
+	return formatString, numBytes, nil
+}
+
+// Returns the uint16 specified by a string or an error
+// supported formats:
+// 1234 - Decimal (default)
+// 0x1234 - Hex
+// 0b0001001000110100 - Binary
+func getNumberArgument(number string) (uint16, error) {
+	base := 10
+	trimmedNumber := number
+	if len(number) > 2 {
+		format := strings.ToLower(number[0:2])
+		if format == "0x" { //hex format
+			base = 16
+			trimmedNumber = number[2:]
+		} else if format == "0b" { //binary format
+			base = 2
+			trimmedNumber = number[2:]
+		} else if !IsDigit(number[0]) || !IsDigit(number[1]) { //not decimal (implied) format
+			return 0, fmt.Errorf("invalid number")
+		}
+	}
+	parsed, err := strconv.ParseUint(trimmedNumber, base, 16)
+	if err != nil {
+		return 0, fmt.Errorf("invalid number: %s", number)
+	}
+	return uint16(parsed), nil
+
+}
+
+// Prints the value in memory at address specified by args[1] using
+// format specified in args[0]
+// formats supported:
+// x/i prints as an instruction
+// x/x prints in hex
+// x/d (default) prints in decimal
+// x/b prints in binary
+// All formats can be prepended with a number specifying how many bytes to read. EX: x/10x to read 10 bytes in hex
+// When specifying x/10i, rather than reading 10 bytes, it will read 10 instructions, using the instruction size to properly read the next instruction
 func printMemCmd(args []string) {
 	if len(args) < 2 {
-		fmt.Println("Missing required argument.")
-		return
-	}
-	if len(args) > 2 {
-		fmt.Println("Too many arguments provided.")
-		return
-	}
-	var address uint16
-	//get address
-	if strings.HasPrefix(args[1], "0x") {
-		val, error := strconv.ParseUint(args[1][2:], 16, 16)
-		if error != nil {
-			fmt.Println(args[1] + " is not a valid number. Format: 0x1234")
-			return
-		}
-		address = uint16(val)
-	} else if strings.ToUpper(args[1]) == "PC" {
-		address = cpu.PC
-	} else {
 		fmt.Println("Missing required argument")
 		return
 	}
-	//get format
-	if len(args[0]) == 1 {
-		fmt.Printf("%s:\t%d\n", args[1], cpu.Bus.GetByte(address))
+	if len(args) > 2 {
+		fmt.Println("Too many arguments provided")
 		return
-	} else if strings.HasPrefix(args[0], "x/") && len(args[0]) >= 3 {
-		//get format specifier
-		var format = "%d"
-		if args[0][len(args[0])-1] == 'x' || args[0][len(args[0])-1] == 'X' {
-			format = "%02X"
-		} else if args[0][2] == 'i' {
-			fmt.Printf("%s:\t%s\n", args[1], nes.DiassembleInstruction(bus, address))
-			return
-		} else if args[0][len(args[0])-1] < '0' || args[0][len(args[0])-1] > '9' {
-			fmt.Println("Invalid format specifier")
-			return
-		}
-		num := args[0][2:len(args[0])] //number of bytes to print
-		if args[0][len(args[0])-1] == 'x' || args[0][len(args[0])-1] == 'X' {
-			num = num[:len(num)-1]
-		}
-		numBytes, err := strconv.ParseInt(num, 10, 32)
-		if err != nil {
-			fmt.Println("Invalid number of bytes specified")
-			return
-		}
-		value := ""
-		for i := 0; i < int(numBytes); i++ {
-			value += fmt.Sprintf(format+" ", cpu.Bus.GetByte(address+uint16(i)))
-		}
-		fmt.Printf("0x%04X-0x%04X:\t%s\n", address, address+uint16(numBytes), value)
-
-	} else {
-		fmt.Printf("%s:\t%d\n", args[1], cpu.Bus.GetByte(address))
 	}
+	format, numBytes, err := getOutputFormatAndSize(args[0])
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	var address uint16
+	if strings.ToLower(args[1]) == "pc" {
+		address = cpu.PC
+	} else {
+		num, err := getNumberArgument(args[1])
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		address = num
+	}
+	if format == "i" {
+		offset := 0
+		for i := 0; i < numBytes; i++ {
+			instr, size := nes.DiassembleInstruction(cpu.Bus, address+uint16(offset))
+			fmt.Printf("0x%04X:\t%s\n", address+uint16(offset), instr)
+			offset += size
+		}
+		return
+	}
+	for i := uint16(0); i < uint16(numBytes); i++ {
+		if i%8 == 0 {
+			fmt.Printf("\n0x%04X:\t", address+i)
+		}
+		fmt.Printf(format+" ", cpu.Bus.GetByte(address+i))
+	}
+	fmt.Println()
+
 }
 
 // Prints cpu register by name
-// command is p <register name>
+// command is p</format> <register name>
+// ignores number of bytes specified. EX: p/10x is the same as p/x
+// this is for code reuse
 func printCmd(args []string) {
 	if len(args) < 2 {
 		fmt.Println("Missing required argument.")
@@ -114,20 +188,19 @@ func printCmd(args []string) {
 		fmt.Println("Too many arguments provided.")
 		return
 	}
-	format := "%d"
-	if strings.HasPrefix(args[0], "p/") && len(args[0]) >= 3 {
-		switch strings.ToLower(args[0][2:]) {
-		case "x":
-			format = "%02X"
-		default:
-			fmt.Println("Invalid format specifier. Valid Option: 'x'")
-			return
-		}
+	format, _, err := getOutputFormatAndSize(args[0])
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	if format == "i" {
+		fmt.Println("Cannot print as an instruction")
+		return
 	}
 	var value uint8
 	switch strings.ToUpper(args[1]) {
 	case "PC":
-		fmt.Printf("%04X\n", cpu.PC)
+		fmt.Printf("0x%04X\n", cpu.PC)
 		return
 	case "X":
 		value = cpu.X
@@ -158,7 +231,8 @@ func printCmd(args []string) {
 
 // uses disassembler to print the current instruction pointed to by the program counter
 func printCurrentInstr() {
-	fmt.Printf("%s |\tCycles left in Instruction: %d\n", nes.DiassembleInstruction(bus, cpu.PC), cpu.Cycles)
+	instr, _ := nes.DiassembleInstruction(bus, cpu.PC)
+	fmt.Printf("0x%04X:\t%s |\tCycles left in Instruction: %d\n", cpu.PC, instr, cpu.Cycles)
 }
 
 func main() {

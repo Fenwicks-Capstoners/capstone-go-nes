@@ -44,11 +44,11 @@ var opcodeNameTable = [256]opCodeAndAddrMode{
 	{"BEQ", relative}, {"SBC", indirectIndex}, {"XXX", implied}, {"XXX", implied}, {"XXX", implied}, {"SBC", zeroPageX}, {"INC", zeroPageX}, {"XXX", implied}, {"SED", implied}, {"SBC", absoluteY}, {"XXX", implied}, {"XXX", implied}, {"XXX", implied}, {"SBC", absoluteX}, {"INC", absoluteX}, {"XXX", implied},
 }
 
-func DiassembleInstruction(bus *BUS, i uint16) string {
+func DiassembleInstruction(bus *BUS, i uint16) (string, int) {
 	instMem := bus.getSlice(i)
 	instr := opcodeNameTable[instMem[0]]
-	_, operand := instr.addrMode(0, instMem)
-	return fmt.Sprintf("0x%04X:\t%s %s", i, instr.name, operand)
+	size, operand := instr.addrMode(0, instMem)
+	return fmt.Sprintf("%s %s", instr.name, operand), size
 }
 
 func Disassemble(pathToBinary string) {
