@@ -213,6 +213,7 @@ func printCmd(args []string) {
 	}
 	var value uint8
 	switch strings.ToUpper(args[1]) {
+	//currently, printing the program counter will ignore the format and always print in HEX
 	case "PC":
 		fmt.Printf("0x%04X\n", cpu.PC)
 		return
