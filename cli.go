@@ -1,3 +1,17 @@
+// Author: Max Smoot
+// CLI debugger for debugging the 6502 emulation
+// supports printing registers and examining memory.
+// Uses same format specifers as GDB
+// format specifiers: x (hex), b(binary), i (instruction), d (decimal, default value if not specified)
+// valid number formats: 0xFFFF (hex), 0b0001 (binary), 1234 (decimal, default)
+// valid commands:
+// x, prints content in memory at provided address. Either literal number address of pc for program counter
+// p, prints the contents of the cpu's register: ex p x prints the x register
+// cur, prints the current instruction and how many cycles remaining in the execution of the instruction
+// clock, clocks the cpu
+// ni, executes next instruction
+// clear, clears the terminal
+// quit, quits the application
 package main
 
 import (
