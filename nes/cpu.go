@@ -436,6 +436,7 @@ func (cpu *CPU) tya() bool {
 }
 
 func (cpu *CPU) Reset() {
+	cpu.SP = 0xFF //stack starts at 0x01FF and grows down
 	cpu.PC = cpu.Get2Bytes(0xFFFC)
 }
 
