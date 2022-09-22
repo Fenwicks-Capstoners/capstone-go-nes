@@ -202,13 +202,17 @@ func printCmd(args []string) {
 		fmt.Println("Too many arguments provided.")
 		return
 	}
-	format, _, err := getOutputFormatAndSize(args[0])
+	format, bytes, err := getOutputFormatAndSize(args[0])
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 	if format == "i" {
 		fmt.Println("Cannot print as an instruction")
+		return
+	}
+	if bytes != 1 {
+		fmt.Println("The print comand only supports the default size modifier (1)")
 		return
 	}
 	var value uint8
