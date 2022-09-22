@@ -1,10 +1,11 @@
 package nes
 
 type instructionAndAddrMode struct {
-	instr    func()
+	instr    func() bool //runs instruction, returns true if instruction could possibly take an extra cycle
 	addrMode func() bool //updates operand and returns true if there is the possibility
 	// of an extra cycle due to a page boundary crossing
 	//(carry bit in lower byte addition for indexed addressing modes)
+	cycles int
 }
 type CPU struct {
 	Bus              *BUS
@@ -32,22 +33,22 @@ func CreateCPU(bus *BUS) *CPU {
 }
 func (a *CPU) populateInstructionTable() {
 	a.instructionTable = [256]instructionAndAddrMode{
-		{a.brk, a.implied}, {a.ora, a.indexIndirect}, {a.xxx, a.implied}, {a.xxx, a.indexIndirect}, {a.xxx, a.zeroPage}, {a.ora, a.zeroPage}, {a.asl, a.zeroPage}, {a.xxx, a.zeroPage}, {a.php, a.implied}, {a.ora, a.immediate}, {a.aslA, a.accumulator}, {a.xxx, a.immediate}, {a.xxx, a.absolute}, {a.ora, a.absolute}, {a.asl, a.absolute}, {a.xxx, a.absolute},
-		{a.bpl, a.relative}, {a.ora, a.indirectIndex}, {a.xxx, a.implied}, {a.xxx, a.indirectIndex}, {a.xxx, a.zeroPageX}, {a.ora, a.zeroPageX}, {a.asl, a.zeroPageX}, {a.xxx, a.zeroPageX}, {a.clc, a.implied}, {a.ora, a.absoluteY}, {a.xxx, a.implied}, {a.xxx, a.indirectIndex}, {a.xxx, a.absoluteX}, {a.ora, a.absoluteX}, {a.asl, a.absoluteX}, {a.xxx, a.absoluteX},
-		{a.jsr, a.absolute}, {a.and, a.indexIndirect}, {a.xxx, a.implied}, {a.xxx, a.indexIndirect}, {a.bit, a.zeroPage}, {a.and, a.zeroPage}, {a.rol, a.zeroPage}, {a.xxx, a.zeroPage}, {a.plp, a.implied}, {a.and, a.immediate}, {a.rolA, a.accumulator}, {a.xxx, a.immediate}, {a.bit, a.absolute}, {a.and, a.absolute}, {a.rol, a.absolute}, {a.xxx, a.absolute},
-		{a.bmi, a.relative}, {a.and, a.indirectIndex}, {a.xxx, a.implied}, {a.xxx, a.indirectIndex}, {a.xxx, a.zeroPageX}, {a.and, a.zeroPageX}, {a.rol, a.zeroPageX}, {a.xxx, a.zeroPageX}, {a.sec, a.implied}, {a.and, a.absoluteY}, {a.xxx, a.implied}, {a.xxx, a.indirectIndex}, {a.xxx, a.absoluteX}, {a.and, a.absoluteX}, {a.rol, a.absoluteX}, {a.xxx, a.absoluteX},
-		{a.rti, a.implied}, {a.eor, a.indexIndirect}, {a.xxx, a.implied}, {a.xxx, a.indexIndirect}, {a.xxx, a.zeroPage}, {a.eor, a.zeroPage}, {a.lsr, a.zeroPage}, {a.xxx, a.zeroPage}, {a.pha, a.implied}, {a.eor, a.immediate}, {a.lsrA, a.accumulator}, {a.xxx, a.immediate}, {a.jmp, a.absolute}, {a.eor, a.absolute}, {a.lsr, a.absolute}, {a.xxx, a.absolute},
-		{a.bvc, a.relative}, {a.eor, a.indirectIndex}, {a.xxx, a.implied}, {a.xxx, a.indirectIndex}, {a.xxx, a.zeroPageX}, {a.eor, a.zeroPageX}, {a.lsr, a.zeroPageX}, {a.xxx, a.zeroPageX}, {a.cli, a.implied}, {a.eor, a.absoluteY}, {a.xxx, a.implied}, {a.xxx, a.indirectIndex}, {a.xxx, a.absoluteX}, {a.eor, a.absoluteX}, {a.lsr, a.absoluteX}, {a.xxx, a.absoluteX},
-		{a.rts, a.implied}, {a.adc, a.indexIndirect}, {a.xxx, a.implied}, {a.xxx, a.indexIndirect}, {a.xxx, a.zeroPage}, {a.adc, a.zeroPage}, {a.ror, a.zeroPage}, {a.xxx, a.zeroPage}, {a.pla, a.implied}, {a.adc, a.immediate}, {a.rorA, a.accumulator}, {a.xxx, a.immediate}, {a.jmp, a.indirect}, {a.adc, a.absolute}, {a.ror, a.absolute}, {a.xxx, a.absolute},
-		{a.bvs, a.relative}, {a.adc, a.indirectIndex}, {a.xxx, a.implied}, {a.xxx, a.indirectIndex}, {a.xxx, a.zeroPageX}, {a.adc, a.zeroPageX}, {a.ror, a.zeroPageX}, {a.xxx, a.zeroPageX}, {a.sei, a.implied}, {a.adc, a.absoluteY}, {a.xxx, a.implied}, {a.xxx, a.indexIndirect}, {a.xxx, a.absoluteX}, {a.adc, a.absoluteX}, {a.ror, a.absoluteX}, {a.xxx, a.absoluteX},
-		{a.xxx, a.immediate}, {a.sta, a.indexIndirect}, {a.xxx, a.immediate}, {a.xxx, a.indexIndirect}, {a.sty, a.zeroPage}, {a.sta, a.zeroPage}, {a.stx, a.zeroPage}, {a.xxx, a.zeroPage}, {a.dey, a.implied}, {a.xxx, a.immediate}, {a.txa, a.implied}, {a.xxx, a.immediate}, {a.sty, a.absolute}, {a.sta, a.absolute}, {a.stx, a.absolute}, {a.xxx, a.absolute},
-		{a.bcc, a.relative}, {a.sta, a.indirectIndex}, {a.xxx, a.implied}, {a.xxx, a.indirectIndex}, {a.sty, a.zeroPageX}, {a.sta, a.zeroPageX}, {a.stx, a.zeroPageY}, {a.xxx, a.zeroPageY}, {a.tya, a.implied}, {a.sta, a.absoluteY}, {a.txs, a.implied}, {a.xxx, a.absoluteY}, {a.xxx, a.absoluteX}, {a.sta, a.absoluteX}, {a.xxx, a.absoluteY}, {a.xxx, a.absoluteY},
-		{a.ldy, a.immediate}, {a.lda, a.indexIndirect}, {a.ldx, a.immediate}, {a.xxx, a.indexIndirect}, {a.ldy, a.zeroPage}, {a.lda, a.zeroPage}, {a.ldx, a.zeroPage}, {a.xxx, a.zeroPage}, {a.tay, a.implied}, {a.lda, a.immediate}, {a.tax, a.implied}, {a.xxx, a.immediate}, {a.ldy, a.absolute}, {a.lda, a.absolute}, {a.ldx, a.absolute}, {a.xxx, a.absolute},
-		{a.bcs, a.relative}, {a.lda, a.indirectIndex}, {a.xxx, a.implied}, {a.xxx, a.indirectIndex}, {a.ldy, a.zeroPageX}, {a.lda, a.zeroPageX}, {a.ldx, a.zeroPageY}, {a.xxx, a.zeroPageY}, {a.clv, a.implied}, {a.lda, a.absoluteY}, {a.tsx, a.implied}, {a.xxx, a.absoluteY}, {a.ldy, a.absoluteX}, {a.lda, a.absoluteX}, {a.ldx, a.absoluteY}, {a.xxx, a.absoluteY},
-		{a.cpy, a.immediate}, {a.cmp, a.indexIndirect}, {a.xxx, a.immediate}, {a.xxx, a.indexIndirect}, {a.cpy, a.zeroPage}, {a.cmp, a.zeroPage}, {a.dec, a.zeroPage}, {a.xxx, a.zeroPage}, {a.iny, a.implied}, {a.cmp, a.immediate}, {a.dex, a.implied}, {a.xxx, a.immediate}, {a.cpy, a.absolute}, {a.cmp, a.absolute}, {a.dec, a.absolute}, {a.xxx, a.absolute},
-		{a.bne, a.relative}, {a.cmp, a.indirectIndex}, {a.xxx, a.implied}, {a.xxx, a.indirectIndex}, {a.xxx, a.zeroPageX}, {a.cmp, a.zeroPageX}, {a.dec, a.zeroPageX}, {a.xxx, a.zeroPageX}, {a.cld, a.implied}, {a.cmp, a.absoluteY}, {a.xxx, a.implied}, {a.xxx, a.absoluteY}, {a.xxx, a.absoluteX}, {a.cmp, a.absoluteX}, {a.dec, a.absoluteX}, {a.xxx, a.absoluteX},
-		{a.cpx, a.immediate}, {a.sbc, a.indexIndirect}, {a.xxx, a.immediate}, {a.xxx, a.indexIndirect}, {a.cpx, a.zeroPage}, {a.sbc, a.zeroPage}, {a.inc, a.zeroPage}, {a.xxx, a.zeroPage}, {a.inx, a.implied}, {a.sbc, a.immediate}, {a.nop, a.implied}, {a.xxx, a.immediate}, {a.cpx, a.absolute}, {a.sbc, a.absolute}, {a.inc, a.absolute}, {a.xxx, a.absolute},
-		{a.beq, a.relative}, {a.sbc, a.indirectIndex}, {a.xxx, a.implied}, {a.xxx, a.indirectIndex}, {a.xxx, a.zeroPageX}, {a.sbc, a.zeroPageX}, {a.inc, a.zeroPageX}, {a.xxx, a.zeroPageX}, {a.sed, a.implied}, {a.sbc, a.absoluteY}, {a.xxx, a.implied}, {a.xxx, a.absoluteY}, {a.xxx, a.absoluteX}, {a.sbc, a.absoluteX}, {a.inc, a.absoluteX}, {a.xxx, a.absoluteX},
+		{a.brk, a.implied, 7}, {a.ora, a.indexIndirect, 6}, {a.xxx, a.implied, 4}, {a.xxx, a.indexIndirect, 4}, {a.xxx, a.zeroPage, 4}, {a.ora, a.zeroPage, 3}, {a.asl, a.zeroPage, 5}, {a.xxx, a.zeroPage, 4}, {a.php, a.implied, 3}, {a.ora, a.immediate, 2}, {a.aslA, a.accumulator, 2}, {a.xxx, a.immediate, 4}, {a.xxx, a.absolute, 4}, {a.ora, a.absolute, 4}, {a.asl, a.absolute, 6}, {a.xxx, a.absolute, 4},
+		{a.bpl, a.relative, 2}, {a.ora, a.indirectIndex, 5}, {a.xxx, a.implied, 4}, {a.xxx, a.indirectIndex, 4}, {a.xxx, a.zeroPageX, 4}, {a.ora, a.zeroPageX, 4}, {a.asl, a.zeroPageX, 6}, {a.xxx, a.zeroPageX, 4}, {a.clc, a.implied, 2}, {a.ora, a.absoluteY, 4}, {a.xxx, a.implied, 4}, {a.xxx, a.indirectIndex, 4}, {a.xxx, a.absoluteX, 4}, {a.ora, a.absoluteX, 4}, {a.asl, a.absoluteX, 7}, {a.xxx, a.absoluteX, 4},
+		{a.jsr, a.absolute, 6}, {a.and, a.indexIndirect, 6}, {a.xxx, a.implied, 4}, {a.xxx, a.indexIndirect, 4}, {a.bit, a.zeroPage, 3}, {a.and, a.zeroPage, 3}, {a.rol, a.zeroPage, 5}, {a.xxx, a.zeroPage, 4}, {a.plp, a.implied, 4}, {a.and, a.immediate, 2}, {a.rolA, a.accumulator, 2}, {a.xxx, a.immediate, 4}, {a.bit, a.absolute, 4}, {a.and, a.absolute, 4}, {a.rol, a.absolute, 6}, {a.xxx, a.absolute, 4},
+		{a.bmi, a.relative, 2}, {a.and, a.indirectIndex, 5}, {a.xxx, a.implied, 4}, {a.xxx, a.indirectIndex, 4}, {a.xxx, a.zeroPageX, 4}, {a.and, a.zeroPageX, 4}, {a.rol, a.zeroPageX, 5}, {a.xxx, a.zeroPageX, 4}, {a.sec, a.implied, 2}, {a.and, a.absoluteY, 4}, {a.xxx, a.implied, 4}, {a.xxx, a.indirectIndex, 4}, {a.xxx, a.absoluteX, 4}, {a.and, a.absoluteX, 4}, {a.rol, a.absoluteX, 7}, {a.xxx, a.absoluteX, 4},
+		{a.rti, a.implied, 6}, {a.eor, a.indexIndirect, 6}, {a.xxx, a.implied, 4}, {a.xxx, a.indexIndirect, 4}, {a.xxx, a.zeroPage, 4}, {a.eor, a.zeroPage, 3}, {a.lsr, a.zeroPage, 5}, {a.xxx, a.zeroPage, 4}, {a.pha, a.implied, 3}, {a.eor, a.immediate, 2}, {a.lsrA, a.accumulator, 2}, {a.xxx, a.immediate, 4}, {a.jmp, a.absolute, 3}, {a.eor, a.absolute, 4}, {a.lsr, a.absolute, 6}, {a.xxx, a.absolute, 4},
+		{a.bvc, a.relative, 2}, {a.eor, a.indirectIndex, 5}, {a.xxx, a.implied, 4}, {a.xxx, a.indirectIndex, 4}, {a.xxx, a.zeroPageX, 4}, {a.eor, a.zeroPageX, 4}, {a.lsr, a.zeroPageX, 6}, {a.xxx, a.zeroPageX, 4}, {a.cli, a.implied, 2}, {a.eor, a.absoluteY, 4}, {a.xxx, a.implied, 4}, {a.xxx, a.indirectIndex, 4}, {a.xxx, a.absoluteX, 4}, {a.eor, a.absoluteX, 4}, {a.lsr, a.absoluteX, 7}, {a.xxx, a.absoluteX, 4},
+		{a.rts, a.implied, 6}, {a.adc, a.indexIndirect, 6}, {a.xxx, a.implied, 4}, {a.xxx, a.indexIndirect, 4}, {a.xxx, a.zeroPage, 4}, {a.adc, a.zeroPage, 3}, {a.ror, a.zeroPage, 5}, {a.xxx, a.zeroPage, 4}, {a.pla, a.implied, 4}, {a.adc, a.immediate, 2}, {a.rorA, a.accumulator, 2}, {a.xxx, a.immediate, 4}, {a.jmp, a.indirect, 5}, {a.adc, a.absolute, 4}, {a.ror, a.absolute, 6}, {a.xxx, a.absolute, 4},
+		{a.bvs, a.relative, 2}, {a.adc, a.indirectIndex, 5}, {a.xxx, a.implied, 4}, {a.xxx, a.indirectIndex, 4}, {a.xxx, a.zeroPageX, 4}, {a.adc, a.zeroPageX, 4}, {a.ror, a.zeroPageX, 6}, {a.xxx, a.zeroPageX, 4}, {a.sei, a.implied, 2}, {a.adc, a.absoluteY, 4}, {a.xxx, a.implied, 4}, {a.xxx, a.indexIndirect, 4}, {a.xxx, a.absoluteX, 4}, {a.adc, a.absoluteX, 4}, {a.ror, a.absoluteX, 7}, {a.xxx, a.absoluteX, 4},
+		{a.xxx, a.immediate, 4}, {a.sta, a.indexIndirect, 6}, {a.xxx, a.immediate, 4}, {a.xxx, a.indexIndirect, 4}, {a.sty, a.zeroPage, 3}, {a.sta, a.zeroPage, 3}, {a.stx, a.zeroPage, 3}, {a.xxx, a.zeroPage, 4}, {a.dey, a.implied, 2}, {a.xxx, a.immediate, 4}, {a.txa, a.implied, 2}, {a.xxx, a.immediate, 4}, {a.sty, a.absolute, 4}, {a.sta, a.absolute, 4}, {a.stx, a.absolute, 4}, {a.xxx, a.absolute, 4},
+		{a.bcc, a.relative, 2}, {a.sta, a.indirectIndex, 6}, {a.xxx, a.implied, 4}, {a.xxx, a.indirectIndex, 4}, {a.sty, a.zeroPageX, 4}, {a.sta, a.zeroPageX, 4}, {a.stx, a.zeroPageY, 4}, {a.xxx, a.zeroPageY, 4}, {a.tya, a.implied, 2}, {a.sta, a.absoluteY, 5}, {a.txs, a.implied, 2}, {a.xxx, a.absoluteY, 4}, {a.xxx, a.absoluteX, 4}, {a.sta, a.absoluteX, 5}, {a.xxx, a.absoluteY, 4}, {a.xxx, a.absoluteY, 4},
+		{a.ldy, a.immediate, 2}, {a.lda, a.indexIndirect, 6}, {a.ldx, a.immediate, 2}, {a.xxx, a.indexIndirect, 4}, {a.ldy, a.zeroPage, 3}, {a.lda, a.zeroPage, 3}, {a.ldx, a.zeroPage, 3}, {a.xxx, a.zeroPage, 4}, {a.tay, a.implied, 2}, {a.lda, a.immediate, 2}, {a.tax, a.implied, 2}, {a.xxx, a.immediate, 4}, {a.ldy, a.absolute, 4}, {a.lda, a.absolute, 4}, {a.ldx, a.absolute, 4}, {a.xxx, a.absolute, 4},
+		{a.bcs, a.relative, 2}, {a.lda, a.indirectIndex, 5}, {a.xxx, a.implied, 4}, {a.xxx, a.indirectIndex, 4}, {a.ldy, a.zeroPageX, 4}, {a.lda, a.zeroPageX, 4}, {a.ldx, a.zeroPageY, 4}, {a.xxx, a.zeroPageY, 4}, {a.clv, a.implied, 2}, {a.lda, a.absoluteY, 4}, {a.tsx, a.implied, 2}, {a.xxx, a.absoluteY, 4}, {a.ldy, a.absoluteX, 4}, {a.lda, a.absoluteX, 4}, {a.ldx, a.absoluteY, 4}, {a.xxx, a.absoluteY, 4},
+		{a.cpy, a.immediate, 2}, {a.cmp, a.indexIndirect, 6}, {a.xxx, a.immediate, 4}, {a.xxx, a.indexIndirect, 4}, {a.cpy, a.zeroPage, 3}, {a.cmp, a.zeroPage, 3}, {a.dec, a.zeroPage, 5}, {a.xxx, a.zeroPage, 4}, {a.iny, a.implied, 2}, {a.cmp, a.immediate, 2}, {a.dex, a.implied, 2}, {a.xxx, a.immediate, 4}, {a.cpy, a.absolute, 4}, {a.cmp, a.absolute, 4}, {a.dec, a.absolute, 6}, {a.xxx, a.absolute, 4},
+		{a.bne, a.relative, 2}, {a.cmp, a.indirectIndex, 5}, {a.xxx, a.implied, 4}, {a.xxx, a.indirectIndex, 4}, {a.xxx, a.zeroPageX, 4}, {a.cmp, a.zeroPageX, 4}, {a.dec, a.zeroPageX, 6}, {a.xxx, a.zeroPageX, 4}, {a.cld, a.implied, 2}, {a.cmp, a.absoluteY, 4}, {a.xxx, a.implied, 4}, {a.xxx, a.absoluteY, 4}, {a.xxx, a.absoluteX, 4}, {a.cmp, a.absoluteX, 4}, {a.dec, a.absoluteX, 7}, {a.xxx, a.absoluteX, 4},
+		{a.cpx, a.immediate, 2}, {a.sbc, a.indexIndirect, 6}, {a.xxx, a.immediate, 4}, {a.xxx, a.indexIndirect, 4}, {a.cpx, a.zeroPage, 3}, {a.sbc, a.zeroPage, 3}, {a.inc, a.zeroPage, 5}, {a.xxx, a.zeroPage, 4}, {a.inx, a.implied, 2}, {a.sbc, a.immediate, 2}, {a.nop, a.implied, 2}, {a.xxx, a.immediate, 4}, {a.cpx, a.absolute, 4}, {a.sbc, a.absolute, 4}, {a.inc, a.absolute, 6}, {a.xxx, a.absolute, 4},
+		{a.beq, a.relative, 2}, {a.sbc, a.indirectIndex, 5}, {a.xxx, a.implied, 4}, {a.xxx, a.indirectIndex, 4}, {a.xxx, a.zeroPageX, 4}, {a.sbc, a.zeroPageX, 4}, {a.inc, a.zeroPageX, 6}, {a.xxx, a.zeroPageX, 4}, {a.sed, a.implied, 2}, {a.sbc, a.absoluteY, 4}, {a.xxx, a.implied, 4}, {a.xxx, a.absoluteY, 4}, {a.xxx, a.absoluteX, 4}, {a.sbc, a.absoluteX, 4}, {a.inc, a.absoluteX, 7}, {a.xxx, a.absoluteX, 4},
 	}
 }
 
@@ -67,21 +68,25 @@ func (cpu *CPU) Get2Bytes(addr uint16) uint16 {
 Addressing Modes
 */
 func (cpu *CPU) implied() bool {
+	cpu.Cycles++
 	return false
 	//does nothing
 }
 func (cpu *CPU) indexIndirect() bool {
+	cpu.Cycles += 5
 	operandAddr := cpu.Bus.GetByte(cpu.PC)
 	cpu.PC++
 	cpu.Operand = cpu.Get2Bytes(uint16(operandAddr + cpu.X))
 	return false
 }
 func (cpu *CPU) zeroPage() bool {
+	cpu.Cycles += 2
 	cpu.Operand = uint16(cpu.Bus.GetByte(cpu.PC))
 	cpu.PC++
 	return false
 }
 func (cpu *CPU) immediate() bool {
+	cpu.Cycles++
 	cpu.Operand = uint16(cpu.Bus.GetByte(cpu.PC))
 	cpu.PC++
 	return false
@@ -91,6 +96,7 @@ func (cpu *CPU) accumulator() bool {
 	return false
 }
 func (cpu *CPU) absolute() bool {
+	cpu.Cycles += 3
 	cpu.Operand = cpu.Get2Bytes(cpu.PC) //gets the 2 byte address operand
 	cpu.PC += 2
 	return false
@@ -108,29 +114,34 @@ func (cpu *CPU) relative() bool {
 	return false
 }
 func (cpu *CPU) indirectIndex() bool {
+	cpu.Cycles += 4
 	indirectAddr := cpu.Bus.GetByte(cpu.PC)
 	cpu.PC += 2
 	absAddr := cpu.Get2Bytes(uint16(indirectAddr))
 	cpu.Operand = absAddr + uint16(cpu.Y)
-	return false
+	return (absAddr&0x00FF)+uint16(cpu.Y) > 0xFF // return true if there was a carry
 }
 func (cpu *CPU) zeroPageX() bool {
+	cpu.Cycles += 3
 	cpu.Operand = uint16(cpu.X + cpu.Bus.GetByte(cpu.PC)) //since both oeprands are uint8 it will drop the carry
 	cpu.PC++
 	return false
 }
 func (cpu *CPU) zeroPageY() bool {
+	cpu.Cycles += 3
 	cpu.Operand = uint16(cpu.Y + cpu.Bus.GetByte(cpu.PC)) //since both oeprands are uint8 it will drop the carry
 	cpu.PC++
 	return false
 }
 func (cpu *CPU) absoluteX() bool {
+	cpu.Cycles += 3
 	absAddr := cpu.Get2Bytes(cpu.PC)
 	cpu.Operand = absAddr + uint16(cpu.X)
 	cpu.PC += 2
 	return (absAddr&0x00FF)+uint16(cpu.X) > 0xFF // return true if there was a carry
 }
 func (cpu *CPU) absoluteY() bool {
+	cpu.Cycles += 3
 	absAddr := cpu.Get2Bytes(cpu.PC)
 	cpu.Operand = absAddr + uint16(cpu.Y)
 	cpu.PC += 2
@@ -147,187 +158,258 @@ func (cpu *CPU) indirect() bool {
 Instruction Functions
 */
 
-func (cpu *CPU) xxx() { //invalid opcode will treat as NOP for now
+func (cpu *CPU) xxx() bool { //invalid opcode will treat as NOP for now
+	return false
+}
+func (cpu *CPU) adc() bool {
+	return false
+}
+func (cpu *CPU) and() bool {
+	return false
 
 }
-func (cpu *CPU) adc() {
+func (cpu *CPU) asl() bool {
+	return false
 
 }
-func (cpu *CPU) and() {
+func (cpu *CPU) aslA() bool {
+	return false
 
 }
-func (cpu *CPU) asl() {
+func (cpu *CPU) bcc() bool {
+	return false
 
 }
-func (cpu *CPU) aslA() {
+func (cpu *CPU) bcs() bool {
+	return false
 
 }
-func (cpu *CPU) bcc() {
+func (cpu *CPU) beq() bool {
+	return false
 
 }
-func (cpu *CPU) bcs() {
+func (cpu *CPU) bit() bool {
+	return false
 
 }
-func (cpu *CPU) beq() {
+func (cpu *CPU) bmi() bool {
+	return false
 
 }
-func (cpu *CPU) bit() {
+func (cpu *CPU) bne() bool {
+	return false
 
 }
-func (cpu *CPU) bmi() {
+func (cpu *CPU) bpl() bool {
+	return false
 
 }
-func (cpu *CPU) bne() {
+func (cpu *CPU) brk() bool {
+	return false
 
 }
-func (cpu *CPU) bpl() {
+func (cpu *CPU) bvc() bool {
+	return false
 
 }
-func (cpu *CPU) brk() {
+func (cpu *CPU) bvs() bool {
+	return false
 
 }
-func (cpu *CPU) bvc() {
+func (cpu *CPU) clc() bool {
+	return false
 
 }
-func (cpu *CPU) bvs() {
+func (cpu *CPU) cld() bool {
+	return false
 
 }
-func (cpu *CPU) clc() {
+func (cpu *CPU) cli() bool {
+	return false
 
 }
-func (cpu *CPU) cld() {
+func (cpu *CPU) clv() bool {
+	return false
 
 }
-func (cpu *CPU) cli() {
+func (cpu *CPU) cmp() bool {
+	return false
 
 }
-func (cpu *CPU) clv() {
+func (cpu *CPU) cpx() bool {
+	return false
 
 }
-func (cpu *CPU) cmp() {
+func (cpu *CPU) cpy() bool {
+	return false
 
 }
-func (cpu *CPU) cpx() {
+func (cpu *CPU) dec() bool {
+	return false
 
 }
-func (cpu *CPU) cpy() {
+func (cpu *CPU) dex() bool {
+	return false
 
 }
-func (cpu *CPU) dec() {
+func (cpu *CPU) dey() bool {
+	return false
 
 }
-func (cpu *CPU) dex() {
+func (cpu *CPU) eor() bool {
+	return false
 
 }
-func (cpu *CPU) dey() {
+func (cpu *CPU) inc() bool {
+	return false
 
 }
-func (cpu *CPU) eor() {
+func (cpu *CPU) inx() bool {
+	return false
 
 }
-func (cpu *CPU) inc() {
+func (cpu *CPU) iny() bool {
+	return false
 
 }
-func (cpu *CPU) inx() {
+func (cpu *CPU) jmp() bool {
+	return false
 
 }
-func (cpu *CPU) iny() {
+func (cpu *CPU) jsr() bool {
+	return false
 
 }
-func (cpu *CPU) jmp() {
+
+// load memory into Accumulator
+func (cpu *CPU) lda() bool {
+	cpu.Cycles++
+	cpu.A = cpu.Bus.GetByte(cpu.Operand)
+	return true
+}
+
+// load memory into register X
+func (cpu *CPU) ldx() bool {
+	cpu.Cycles++
+	cpu.X = cpu.Bus.GetByte(cpu.Operand)
+	return true
+}
+
+// load memory into register Y
+func (cpu *CPU) ldy() bool {
+	cpu.Cycles++
+	cpu.Y = cpu.Bus.GetByte(cpu.Operand)
+	return true
+}
+func (cpu *CPU) lsr() bool {
+	return false
 
 }
-func (cpu *CPU) jsr() {
+func (cpu *CPU) lsrA() bool {
+	return false
 
 }
-func (cpu *CPU) lda() {
+func (cpu *CPU) nop() bool {
+	return false
 
 }
-func (cpu *CPU) ldx() {
+func (cpu *CPU) ora() bool {
+	return false
 
 }
-func (cpu *CPU) ldy() {
+func (cpu *CPU) pha() bool {
+	return false
 
 }
-func (cpu *CPU) lsr() {
+func (cpu *CPU) php() bool {
+	return false
 
 }
-func (cpu *CPU) lsrA() {
+func (cpu *CPU) pla() bool {
+	return false
 
 }
-func (cpu *CPU) nop() {
+func (cpu *CPU) plp() bool {
+	return false
 
 }
-func (cpu *CPU) ora() {
+func (cpu *CPU) rol() bool {
+	return false
 
 }
-func (cpu *CPU) pha() {
+func (cpu *CPU) rolA() bool {
+	return false
 
 }
-func (cpu *CPU) php() {
+func (cpu *CPU) ror() bool {
+	return false
 
 }
-func (cpu *CPU) pla() {
+func (cpu *CPU) rorA() bool {
+	return false
 
 }
-func (cpu *CPU) plp() {
+func (cpu *CPU) rti() bool {
+	return false
 
 }
-func (cpu *CPU) rol() {
+func (cpu *CPU) rts() bool {
+	return false
 
 }
-func (cpu *CPU) rolA() {
+func (cpu *CPU) sbc() bool {
+	return false
 
 }
-func (cpu *CPU) ror() {
+func (cpu *CPU) sec() bool {
+	return false
 
 }
-func (cpu *CPU) rorA() {
+func (cpu *CPU) sed() bool {
+	return false
 
 }
-func (cpu *CPU) rti() {
+func (cpu *CPU) sei() bool {
+	return false
 
 }
-func (cpu *CPU) rts() {
+
+// store accumulator in memory
+func (cpu *CPU) sta() bool {
+
+	return false
 
 }
-func (cpu *CPU) sbc() {
+func (cpu *CPU) stx() bool {
+	return false
 
 }
-func (cpu *CPU) sec() {
+func (cpu *CPU) sty() bool {
+	return false
 
 }
-func (cpu *CPU) sed() {
+func (cpu *CPU) tax() bool {
+	return false
 
 }
-func (cpu *CPU) sei() {
+func (cpu *CPU) tay() bool {
+	return false
 
 }
-func (cpu *CPU) sta() {
+func (cpu *CPU) tsx() bool {
+	return false
 
 }
-func (cpu *CPU) stx() {
+func (cpu *CPU) txa() bool {
+	return false
 
 }
-func (cpu *CPU) sty() {
+func (cpu *CPU) txs() bool {
+	return false
 
 }
-func (cpu *CPU) tax() {
-
-}
-func (cpu *CPU) tay() {
-
-}
-func (cpu *CPU) tsx() {
-
-}
-func (cpu *CPU) txa() {
-
-}
-func (cpu *CPU) txs() {
-
-}
-func (cpu *CPU) tya() {
+func (cpu *CPU) tya() bool {
+	return false
 
 }
 
