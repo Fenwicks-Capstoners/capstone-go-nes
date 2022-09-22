@@ -226,7 +226,7 @@ func printCmd(args []string) {
 	case "Y":
 		value = cpu.Y
 	case "A":
-		value = cpu.A
+		value = cpu.AC
 	case "S":
 		value = cpu.S
 	case "CF":
