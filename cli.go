@@ -46,7 +46,7 @@ func loadBinary(path string) bool {
 		return false
 	}
 
-	copy(cpu.Bus.Memory, buf)
+	copy(cpu.Bus.Memory[0x4020:], buf)
 	return true
 }
 
@@ -228,7 +228,7 @@ func printCmd(args []string) {
 	case "A":
 		value = cpu.A
 	case "S":
-		value = cpu.S
+		value = cpu.SP
 	case "CF":
 		value = boolToUint8(cpu.CF)
 	case "ZF":
@@ -251,7 +251,7 @@ func printCmd(args []string) {
 // uses disassembler to print the current instruction pointed to by the program counter
 func printCurrentInstr() {
 	instr, _ := nes.DiassembleInstruction(bus, cpu.PC)
-	fmt.Printf("0x%04X:\t%s |\tCycles left in Instruction: %d\n", cpu.PC, instr, cpu.Cycles)
+	fmt.Printf("0x%04X:\t%s |\tCycles left executing previous instruction: %d\n", cpu.PC, instr, cpu.Cycles)
 }
 
 func main() {

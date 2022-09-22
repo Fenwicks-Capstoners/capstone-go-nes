@@ -12,7 +12,7 @@ type CPU struct {
 	A                uint8                       //accumulator register
 	X                uint8                       //index register
 	Y                uint8                       //index register
-	S                uint8                       //stack pointer
+	SP               uint8                       //stack pointer
 	PC               uint16                      //program counter
 	CF               bool                        // carry flag
 	ZF               bool                        // zero flag
@@ -68,25 +68,21 @@ func (cpu *CPU) Get2Bytes(addr uint16) uint16 {
 Addressing Modes
 */
 func (cpu *CPU) implied() bool {
-	cpu.Cycles++
 	return false
 	//does nothing
 }
 func (cpu *CPU) indexIndirect() bool {
-	cpu.Cycles += 5
 	operandAddr := cpu.Bus.GetByte(cpu.PC)
 	cpu.PC++
 	cpu.Operand = cpu.Get2Bytes(uint16(operandAddr + cpu.X))
 	return false
 }
 func (cpu *CPU) zeroPage() bool {
-	cpu.Cycles += 2
 	cpu.Operand = uint16(cpu.Bus.GetByte(cpu.PC))
 	cpu.PC++
 	return false
 }
 func (cpu *CPU) immediate() bool {
-	cpu.Cycles++
 	cpu.Operand = uint16(cpu.Bus.GetByte(cpu.PC))
 	cpu.PC++
 	return false
@@ -96,7 +92,6 @@ func (cpu *CPU) accumulator() bool {
 	return false
 }
 func (cpu *CPU) absolute() bool {
-	cpu.Cycles += 3
 	cpu.Operand = cpu.Get2Bytes(cpu.PC) //gets the 2 byte address operand
 	cpu.PC += 2
 	return false
@@ -114,7 +109,6 @@ func (cpu *CPU) relative() bool {
 	return false
 }
 func (cpu *CPU) indirectIndex() bool {
-	cpu.Cycles += 4
 	indirectAddr := cpu.Bus.GetByte(cpu.PC)
 	cpu.PC += 2
 	absAddr := cpu.Get2Bytes(uint16(indirectAddr))
@@ -122,26 +116,22 @@ func (cpu *CPU) indirectIndex() bool {
 	return (absAddr&0x00FF)+uint16(cpu.Y) > 0xFF // return true if there was a carry
 }
 func (cpu *CPU) zeroPageX() bool {
-	cpu.Cycles += 3
 	cpu.Operand = uint16(cpu.X + cpu.Bus.GetByte(cpu.PC)) //since both oeprands are uint8 it will drop the carry
 	cpu.PC++
 	return false
 }
 func (cpu *CPU) zeroPageY() bool {
-	cpu.Cycles += 3
 	cpu.Operand = uint16(cpu.Y + cpu.Bus.GetByte(cpu.PC)) //since both oeprands are uint8 it will drop the carry
 	cpu.PC++
 	return false
 }
 func (cpu *CPU) absoluteX() bool {
-	cpu.Cycles += 3
 	absAddr := cpu.Get2Bytes(cpu.PC)
 	cpu.Operand = absAddr + uint16(cpu.X)
 	cpu.PC += 2
 	return (absAddr&0x00FF)+uint16(cpu.X) > 0xFF // return true if there was a carry
 }
 func (cpu *CPU) absoluteY() bool {
-	cpu.Cycles += 3
 	absAddr := cpu.Get2Bytes(cpu.PC)
 	cpu.Operand = absAddr + uint16(cpu.Y)
 	cpu.PC += 2
@@ -283,21 +273,18 @@ func (cpu *CPU) jsr() bool {
 
 // load memory into Accumulator
 func (cpu *CPU) lda() bool {
-	cpu.Cycles++
 	cpu.A = cpu.Bus.GetByte(cpu.Operand)
 	return true
 }
 
 // load memory into register X
 func (cpu *CPU) ldx() bool {
-	cpu.Cycles++
 	cpu.X = cpu.Bus.GetByte(cpu.Operand)
 	return true
 }
 
 // load memory into register Y
 func (cpu *CPU) ldy() bool {
-	cpu.Cycles++
 	cpu.Y = cpu.Bus.GetByte(cpu.Operand)
 	return true
 }
@@ -376,39 +363,74 @@ func (cpu *CPU) sei() bool {
 
 // store accumulator in memory
 func (cpu *CPU) sta() bool {
-
+	cpu.Bus.SetByte(cpu.Operand, cpu.A)
 	return false
 
 }
+
+// store index X in memory
 func (cpu *CPU) stx() bool {
+	cpu.Bus.SetByte(cpu.Operand, cpu.X)
 	return false
 
 }
+
+// store index Y in memory
 func (cpu *CPU) sty() bool {
+	cpu.Bus.SetByte(cpu.Operand, cpu.Y)
+
 	return false
 
 }
+
+// transfer accumulator to index x
 func (cpu *CPU) tax() bool {
+	cpu.X = cpu.A
+	cpu.NF = (cpu.X & 0b10000000) == 1 //set negative flag
+	cpu.ZF = cpu.X == 0
 	return false
 
 }
+
+// transfer accumulator to index Y
 func (cpu *CPU) tay() bool {
+	cpu.Y = cpu.A
+	cpu.NF = (cpu.Y & 0b10000000) == 1 //set negative flag
+	cpu.ZF = cpu.Y == 0
 	return false
 
 }
+
+// transfer stack pointer to index X
 func (cpu *CPU) tsx() bool {
+	cpu.X = cpu.SP
+	cpu.NF = (cpu.X & 0b10000000) == 1 //set negative flag
+	cpu.ZF = cpu.X == 0
 	return false
 
 }
+
+// transfer index x to accumulator
 func (cpu *CPU) txa() bool {
+	cpu.A = cpu.X
+	cpu.NF = (cpu.A & 0b10000000) == 1 //set negative flag
+	cpu.ZF = cpu.A == 0
 	return false
 
 }
+
+// transfer index x to stack register
 func (cpu *CPU) txs() bool {
+	cpu.SP = cpu.X
 	return false
 
 }
+
+// transfer index y to accumulator
 func (cpu *CPU) tya() bool {
+	cpu.A = cpu.Y
+	cpu.NF = (cpu.A & 0b10000000) == 1 //set negative flag
+	cpu.ZF = cpu.A == 0
 	return false
 
 }
@@ -425,9 +447,13 @@ func (cpu *CPU) Clock() {
 		//increment program counter
 		cpu.PC++
 		// run address mode function to populate operand
-		instruction.addrMode()
+		extraAddr := instruction.addrMode()
 		//execute instruction
-		instruction.instr()
+		extraIns := instruction.instr()
+		cpu.Cycles = instruction.cycles
+		if extraAddr && extraIns {
+			cpu.Cycles++
+		}
 
 	} else {
 		//otherwise don't do anything and decrement cycles
