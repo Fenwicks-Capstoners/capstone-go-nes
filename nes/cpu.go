@@ -20,12 +20,7 @@ type CPU struct {
 	DF               bool                        // decimal flag
 	OF               bool                        // overflow flag
 	NF               bool                        // negative flag
-<<<<<<< HEAD
 	RemCycles        int                         //cycles left in current instruction
-=======
-	BF               bool                        //break flag
-	Cycles           int                         //number of cycles left in current instruction
->>>>>>> master
 	Operand          uint16                      // the operand, sometimes a single byte, sometimes a 2 byte address
 	instructionTable [256]instructionAndAddrMode //maps first instruction byte to instruction function
 }
@@ -302,13 +297,13 @@ func (cpu *CPU) jsr() bool {
 
 // load memory into Accumulator
 func (cpu *CPU) lda() bool {
-	cpu.A = cpu.Bus.GetByte(cpu.Operand)
+	cpu.AC = cpu.Bus.GetByte(cpu.Operand)
 	return true
 }
 
 // load immediate value into Accumulator
 func (cpu *CPU) ldaImm() bool {
-	cpu.A = uint8(cpu.Operand)
+	cpu.AC = uint8(cpu.Operand)
 	return true
 }
 
@@ -410,7 +405,7 @@ func (cpu *CPU) sei() bool {
 
 // store accumulator in memory
 func (cpu *CPU) sta() bool {
-	cpu.Bus.SetByte(cpu.Operand, cpu.A)
+	cpu.Bus.SetByte(cpu.Operand, cpu.AC)
 	return false
 
 }
@@ -432,7 +427,7 @@ func (cpu *CPU) sty() bool {
 
 // transfer accumulator to index x
 func (cpu *CPU) tax() bool {
-	cpu.X = cpu.A
+	cpu.X = cpu.AC
 	cpu.NF = (cpu.X & 0b10000000) == 1 //set negative flag
 	cpu.ZF = cpu.X == 0
 	return false
@@ -441,7 +436,7 @@ func (cpu *CPU) tax() bool {
 
 // transfer accumulator to index Y
 func (cpu *CPU) tay() bool {
-	cpu.Y = cpu.A
+	cpu.Y = cpu.AC
 	cpu.NF = (cpu.Y & 0b10000000) == 1 //set negative flag
 	cpu.ZF = cpu.Y == 0
 	return false
@@ -459,9 +454,9 @@ func (cpu *CPU) tsx() bool {
 
 // transfer index x to accumulator
 func (cpu *CPU) txa() bool {
-	cpu.A = cpu.X
-	cpu.NF = (cpu.A & 0b10000000) == 1 //set negative flag
-	cpu.ZF = cpu.A == 0
+	cpu.AC = cpu.X
+	cpu.NF = (cpu.AC & 0b10000000) == 1 //set negative flag
+	cpu.ZF = cpu.AC == 0
 	return false
 
 }
@@ -475,9 +470,9 @@ func (cpu *CPU) txs() bool {
 
 // transfer index y to accumulator
 func (cpu *CPU) tya() bool {
-	cpu.A = cpu.Y
-	cpu.NF = (cpu.A & 0b10000000) == 1 //set negative flag
-	cpu.ZF = cpu.A == 0
+	cpu.AC = cpu.Y
+	cpu.NF = (cpu.AC & 0b10000000) == 1 //set negative flag
+	cpu.ZF = cpu.AC == 0
 	return false
 
 }
