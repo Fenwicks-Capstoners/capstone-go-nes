@@ -241,6 +241,9 @@ func printCmd(args []string) {
 		value = boolToUint8(cpu.OF)
 	case "NF":
 		value = boolToUint8(cpu.NF)
+	case "OP":
+		fmt.Printf("0x%04X\n", cpu.Operand)
+		return
 	default:
 		fmt.Println("Can't print " + args[1])
 		return

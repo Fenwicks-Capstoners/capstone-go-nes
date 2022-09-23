@@ -43,7 +43,7 @@ func (a *CPU) populateInstructionTable() {
 		{a.bvs, a.relative, 2}, {a.adc, a.indirectIndex, 5}, {a.xxx, a.implied, 4}, {a.xxx, a.indirectIndex, 4}, {a.xxx, a.zeroPageX, 4}, {a.adc, a.zeroPageX, 4}, {a.ror, a.zeroPageX, 6}, {a.xxx, a.zeroPageX, 4}, {a.sei, a.implied, 2}, {a.adc, a.absoluteY, 4}, {a.xxx, a.implied, 4}, {a.xxx, a.indexIndirect, 4}, {a.xxx, a.absoluteX, 4}, {a.adc, a.absoluteX, 4}, {a.ror, a.absoluteX, 7}, {a.xxx, a.absoluteX, 4},
 		{a.xxx, a.immediate, 4}, {a.sta, a.indexIndirect, 6}, {a.xxx, a.immediate, 4}, {a.xxx, a.indexIndirect, 4}, {a.sty, a.zeroPage, 3}, {a.sta, a.zeroPage, 3}, {a.stx, a.zeroPage, 3}, {a.xxx, a.zeroPage, 4}, {a.dey, a.implied, 2}, {a.xxx, a.immediate, 4}, {a.txa, a.implied, 2}, {a.xxx, a.immediate, 4}, {a.sty, a.absolute, 4}, {a.sta, a.absolute, 4}, {a.stx, a.absolute, 4}, {a.xxx, a.absolute, 4},
 		{a.bcc, a.relative, 2}, {a.sta, a.indirectIndex, 6}, {a.xxx, a.implied, 4}, {a.xxx, a.indirectIndex, 4}, {a.sty, a.zeroPageX, 4}, {a.sta, a.zeroPageX, 4}, {a.stx, a.zeroPageY, 4}, {a.xxx, a.zeroPageY, 4}, {a.tya, a.implied, 2}, {a.sta, a.absoluteY, 5}, {a.txs, a.implied, 2}, {a.xxx, a.absoluteY, 4}, {a.xxx, a.absoluteX, 4}, {a.sta, a.absoluteX, 5}, {a.xxx, a.absoluteY, 4}, {a.xxx, a.absoluteY, 4},
-		{a.ldy, a.immediate, 2}, {a.lda, a.indexIndirect, 6}, {a.ldx, a.immediate, 2}, {a.xxx, a.indexIndirect, 4}, {a.ldy, a.zeroPage, 3}, {a.lda, a.zeroPage, 3}, {a.ldx, a.zeroPage, 3}, {a.xxx, a.zeroPage, 4}, {a.tay, a.implied, 2}, {a.lda, a.immediate, 2}, {a.tax, a.implied, 2}, {a.xxx, a.immediate, 4}, {a.ldy, a.absolute, 4}, {a.lda, a.absolute, 4}, {a.ldx, a.absolute, 4}, {a.xxx, a.absolute, 4},
+		{a.ldyImm, a.immediate, 2}, {a.lda, a.indexIndirect, 6}, {a.ldxImm, a.immediate, 2}, {a.xxx, a.indexIndirect, 4}, {a.ldy, a.zeroPage, 3}, {a.lda, a.zeroPage, 3}, {a.ldx, a.zeroPage, 3}, {a.xxx, a.zeroPage, 4}, {a.tay, a.implied, 2}, {a.ldaImm, a.immediate, 2}, {a.tax, a.implied, 2}, {a.xxx, a.immediate, 4}, {a.ldy, a.absolute, 4}, {a.lda, a.absolute, 4}, {a.ldx, a.absolute, 4}, {a.xxx, a.absolute, 4},
 		{a.bcs, a.relative, 2}, {a.lda, a.indirectIndex, 5}, {a.xxx, a.implied, 4}, {a.xxx, a.indirectIndex, 4}, {a.ldy, a.zeroPageX, 4}, {a.lda, a.zeroPageX, 4}, {a.ldx, a.zeroPageY, 4}, {a.xxx, a.zeroPageY, 4}, {a.clv, a.implied, 2}, {a.lda, a.absoluteY, 4}, {a.tsx, a.implied, 2}, {a.xxx, a.absoluteY, 4}, {a.ldy, a.absoluteX, 4}, {a.lda, a.absoluteX, 4}, {a.ldx, a.absoluteY, 4}, {a.xxx, a.absoluteY, 4},
 		{a.cpy, a.immediate, 2}, {a.cmp, a.indexIndirect, 6}, {a.xxx, a.immediate, 4}, {a.xxx, a.indexIndirect, 4}, {a.cpy, a.zeroPage, 3}, {a.cmp, a.zeroPage, 3}, {a.dec, a.zeroPage, 5}, {a.xxx, a.zeroPage, 4}, {a.iny, a.implied, 2}, {a.cmp, a.immediate, 2}, {a.dex, a.implied, 2}, {a.xxx, a.immediate, 4}, {a.cpy, a.absolute, 4}, {a.cmp, a.absolute, 4}, {a.dec, a.absolute, 6}, {a.xxx, a.absolute, 4},
 		{a.bne, a.relative, 2}, {a.cmp, a.indirectIndex, 5}, {a.xxx, a.implied, 4}, {a.xxx, a.indirectIndex, 4}, {a.xxx, a.zeroPageX, 4}, {a.cmp, a.zeroPageX, 4}, {a.dec, a.zeroPageX, 6}, {a.xxx, a.zeroPageX, 4}, {a.cld, a.implied, 2}, {a.cmp, a.absoluteY, 4}, {a.xxx, a.implied, 4}, {a.xxx, a.absoluteY, 4}, {a.xxx, a.absoluteX, 4}, {a.cmp, a.absoluteX, 4}, {a.dec, a.absoluteX, 7}, {a.xxx, a.absoluteX, 4},
@@ -71,33 +71,45 @@ func (cpu *CPU) implied() bool {
 	return false
 	//does nothing
 }
+
+// add x to immediate zero page address then read the address stored at that location in memory
 func (cpu *CPU) indexIndirect() bool {
 	operandAddr := cpu.Bus.GetByte(cpu.PC)
 	cpu.PC++
 	cpu.Operand = cpu.Get2Bytes(uint16(operandAddr + cpu.X))
 	return false
 }
+
+// operand is the byte after the instruction byte (zero page address)
 func (cpu *CPU) zeroPage() bool {
 	cpu.Operand = uint16(cpu.Bus.GetByte(cpu.PC))
 	cpu.PC++
 	return false
 }
+
+// operand is the byte after the instruction byte
 func (cpu *CPU) immediate() bool {
 	cpu.Operand = uint16(cpu.Bus.GetByte(cpu.PC))
 	cpu.PC++
 	return false
 }
+
+// does nothing since accumulator is a register
 func (cpu *CPU) accumulator() bool {
 	//does nothing
 	return false
 }
+
+// operand is two bytes following instruction byte
 func (cpu *CPU) absolute() bool {
 	cpu.Operand = cpu.Get2Bytes(cpu.PC) //gets the 2 byte address operand
 	cpu.PC += 2
 	return false
 }
+
+// operand is the PC + single byte specified after instruction (signed)
 func (cpu *CPU) relative() bool {
-	//increment program counter to next instructin before adding the offset
+	//increment program counter to next instruction before adding the offset
 	offset := int8(cpu.Bus.GetByte(cpu.PC))
 	cpu.PC++
 	isNeg := offset < 0
@@ -108,6 +120,10 @@ func (cpu *CPU) relative() bool {
 	}
 	return false
 }
+
+// byte following instruction byte is a zero page address. The operand becomes the 16bit address stored at
+// that location + Y
+// can take an extra cycle if the read crosses a page boundary
 func (cpu *CPU) indirectIndex() bool {
 	indirectAddr := cpu.Bus.GetByte(cpu.PC)
 	cpu.PC += 2
@@ -115,22 +131,32 @@ func (cpu *CPU) indirectIndex() bool {
 	cpu.Operand = absAddr + uint16(cpu.Y)
 	return (absAddr&0x00FF)+uint16(cpu.Y) > 0xFF // return true if there was a carry
 }
+
+// operand becomes immediate 1 byte value + x
 func (cpu *CPU) zeroPageX() bool {
-	cpu.Operand = uint16(cpu.X + cpu.Bus.GetByte(cpu.PC)) //since both oeprands are uint8 it will drop the carry
+	cpu.Operand = uint16(cpu.X + cpu.Bus.GetByte(cpu.PC)) //since both operands are uint8 it will drop the carry
 	cpu.PC++
 	return false
 }
+
+// operand becomes immediate 1 byte value + Y
 func (cpu *CPU) zeroPageY() bool {
 	cpu.Operand = uint16(cpu.Y + cpu.Bus.GetByte(cpu.PC)) //since both oeprands are uint8 it will drop the carry
 	cpu.PC++
 	return false
 }
+
+// operand is a 16 bit immediate value + X
+// can take an extra cycle if the memory read crosses a page boundary
 func (cpu *CPU) absoluteX() bool {
 	absAddr := cpu.Get2Bytes(cpu.PC)
 	cpu.Operand = absAddr + uint16(cpu.X)
 	cpu.PC += 2
 	return (absAddr&0x00FF)+uint16(cpu.X) > 0xFF // return true if there was a carry
 }
+
+// operand is a 16 bit immediate value + Y
+// can take an extra cycle if the memory read crosses a page boundary
 func (cpu *CPU) absoluteY() bool {
 	absAddr := cpu.Get2Bytes(cpu.PC)
 	cpu.Operand = absAddr + uint16(cpu.Y)
@@ -138,8 +164,11 @@ func (cpu *CPU) absoluteY() bool {
 	return (absAddr&0x00FF)+uint16(cpu.Y) > 0xFF // return true if there was a carry
 
 }
+
+// only used with JMP
+// operand is address stored in memory at location specified by 16 bit immediate value
 func (cpu *CPU) indirect() bool {
-	cpu.Operand = cpu.Get2Bytes(cpu.Get2Bytes(cpu.PC + 1))
+	cpu.Operand = cpu.Get2Bytes(cpu.Get2Bytes(cpu.PC))
 	cpu.PC += 2
 	return false
 }
@@ -277,15 +306,33 @@ func (cpu *CPU) lda() bool {
 	return true
 }
 
+// load immediate value into Accumulator
+func (cpu *CPU) ldaImm() bool {
+	cpu.A = uint8(cpu.Operand)
+	return true
+}
+
 // load memory into register X
 func (cpu *CPU) ldx() bool {
 	cpu.X = cpu.Bus.GetByte(cpu.Operand)
 	return true
 }
 
+// load immediate value into register X
+func (cpu *CPU) ldxImm() bool {
+	cpu.X = uint8(cpu.Operand)
+	return true
+}
+
 // load memory into register Y
 func (cpu *CPU) ldy() bool {
 	cpu.Y = cpu.Bus.GetByte(cpu.Operand)
+	return true
+}
+
+// load immediate value into register Y
+func (cpu *CPU) ldyImm() bool {
+	cpu.Y = uint8(cpu.Operand)
 	return true
 }
 func (cpu *CPU) lsr() bool {
@@ -451,7 +498,7 @@ func (cpu *CPU) Clock() {
 		extraAddr := instruction.addrMode()
 		//execute instruction
 		extraIns := instruction.instr()
-		cpu.Cycles = instruction.cycles
+		cpu.Cycles = instruction.cycles - 1 // subtracing 1 since we executed a cycle
 		if extraAddr && extraIns {
 			cpu.Cycles++
 		}
