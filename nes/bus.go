@@ -1,7 +1,5 @@
 package nes
 
-import "log"
-
 const MemorySize = 65536 //65 KB
 
 type BUS struct {
@@ -21,7 +19,7 @@ func (bus *BUS) getSlice(addr uint16) []uint8 {
 		//0x0800 - 0x1FFF mirrored
 		return bus.Memory[addr%0x0800 : addr%0x0800+3] //handle mirroring by wrapping the addresses around 0x0800
 	}
-	return make([]uint8, 0)
+	return bus.Memory[addr : addr+3]
 }
 
 func (bus *BUS) GetByte(addr uint16) uint8 {
@@ -43,6 +41,6 @@ func (bus *BUS) SetByte(addr uint16, value uint8) {
 		bus.Memory[addr%0x0800] = value //handle mirroring by wrapping the addresses around 0x0800
 		return
 	}
-	log.Fatalf("Address %04X not supported", addr)
+	bus.Memory[addr] = value
 
 }
