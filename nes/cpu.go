@@ -20,7 +20,7 @@ type CPU struct {
 	DF               bool                        // decimal flag
 	OF               bool                        // overflow flag
 	NF               bool                        // negative flag
-	Cycles           int                         //number of cycles left in current instruction
+	RemCycles        int                         //cycles left in current instruction
 	Operand          uint16                      // the operand, sometimes a single byte, sometimes a 2 byte address
 	instructionTable [256]instructionAndAddrMode //maps first instruction byte to instruction function
 }
@@ -52,10 +52,6 @@ func (a *CPU) populateInstructionTable() {
 	}
 }
 
-func (cpu *CPU) GetOperand() uint16 {
-	return cpu.Operand
-}
-
 // Returns 2 bytes: addr and addr + 1
 // swaps bytes due to little endian encoding, returns 16 bit number
 func (cpu *CPU) Get2Bytes(addr uint16) uint16 {
@@ -75,8 +71,8 @@ func (cpu *CPU) implied() bool {
 // add x to immediate zero page address then read the address stored at that location in memory
 func (cpu *CPU) indexIndirect() bool {
 	operandAddr := cpu.Bus.GetByte(cpu.PC)
-	cpu.PC++
 	cpu.Operand = cpu.Get2Bytes(uint16(operandAddr + cpu.X))
+	cpu.PC++
 	return false
 }
 
@@ -109,15 +105,14 @@ func (cpu *CPU) absolute() bool {
 
 // operand is the PC + single byte specified after instruction (signed)
 func (cpu *CPU) relative() bool {
-	//increment program counter to next instruction before adding the offset
 	offset := int8(cpu.Bus.GetByte(cpu.PC))
-	cpu.PC++
 	isNeg := offset < 0
 	if isNeg {
 		cpu.Operand = cpu.PC - uint16(-1*offset)
 	} else {
 		cpu.Operand = cpu.PC + uint16(offset)
 	}
+	cpu.PC++
 	return false
 }
 
@@ -126,9 +121,9 @@ func (cpu *CPU) relative() bool {
 // can take an extra cycle if the read crosses a page boundary
 func (cpu *CPU) indirectIndex() bool {
 	indirectAddr := cpu.Bus.GetByte(cpu.PC)
-	cpu.PC += 2
 	absAddr := cpu.Get2Bytes(uint16(indirectAddr))
 	cpu.Operand = absAddr + uint16(cpu.Y)
+	cpu.PC++
 	return (absAddr&0x00FF)+uint16(cpu.Y) > 0xFF // return true if there was a carry
 }
 
@@ -489,7 +484,7 @@ func (cpu *CPU) Reset() {
 
 // Cycles the cpu
 func (cpu *CPU) Clock() {
-	if cpu.Cycles == 0 {
+	if cpu.RemCycles == 0 {
 		//decode instruction
 		instruction := cpu.instructionTable[cpu.Bus.GetByte(cpu.PC)]
 		//increment program counter
@@ -498,13 +493,11 @@ func (cpu *CPU) Clock() {
 		extraAddr := instruction.addrMode()
 		//execute instruction
 		extraIns := instruction.instr()
-		cpu.Cycles = instruction.cycles - 1 // subtracing 1 since we executed a cycle
+		cpu.RemCycles = instruction.cycles
 		if extraAddr && extraIns {
-			cpu.Cycles++
+			cpu.RemCycles++
 		}
 
-	} else {
-		//otherwise don't do anything and decrement cycles
-		cpu.Cycles--
 	}
+	cpu.RemCycles--
 }

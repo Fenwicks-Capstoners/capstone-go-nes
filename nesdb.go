@@ -1,4 +1,5 @@
 // Author: Max Smoot
+// NESDB = NES Debugger
 // CLI debugger for debugging the 6502 emulation
 // supports printing registers and examining memory.
 // Uses same format specifers as GDB
@@ -254,7 +255,7 @@ func printCmd(args []string) {
 // uses disassembler to print the current instruction pointed to by the program counter
 func printCurrentInstr() {
 	instr, _ := nes.DiassembleInstruction(bus, cpu.PC)
-	fmt.Printf("0x%04X:\t%s |\tCycles left executing previous instruction: %d\n", cpu.PC, instr, cpu.Cycles)
+	fmt.Printf("0x%04X:\t%s |\tCycles left executing previous instruction: %d\n", cpu.PC, instr, cpu.RemCycles)
 }
 
 func main() {
@@ -280,6 +281,7 @@ func main() {
 	scanner := bufio.NewScanner(os.Stdin)
 	input := ""
 	for {
+		fmt.Print("NESDB> ")
 		scanner.Scan()
 		input = scanner.Text()
 		tokens := strings.Fields(input)
@@ -294,7 +296,7 @@ func main() {
 			fmt.Print("\033[H\033[2J")
 		} else if tokens[0] == "ni" {
 			cpu.Clock()
-			for cpu.Cycles > 0 {
+			for cpu.RemCycles > 0 {
 				cpu.Clock()
 			}
 			printCurrentInstr()
