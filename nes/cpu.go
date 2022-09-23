@@ -9,18 +9,23 @@ type instructionAndAddrMode struct {
 }
 type CPU struct {
 	Bus              *BUS
-	A                uint8                       //accumulator register
+	AC               uint8                       //accumulator register
 	X                uint8                       //index register
 	Y                uint8                       //index register
 	SP               uint8                       //stack pointer
 	PC               uint16                      //program counter
 	CF               bool                        // carry flag
 	ZF               bool                        // zero flag
-	IF               bool                        //interrupt disable flag
+	IF               bool                        // interrupt disable flag
 	DF               bool                        // decimal flag
 	OF               bool                        // overflow flag
 	NF               bool                        // negative flag
+<<<<<<< HEAD
 	RemCycles        int                         //cycles left in current instruction
+=======
+	BF               bool                        //break flag
+	Cycles           int                         //number of cycles left in current instruction
+>>>>>>> master
 	Operand          uint16                      // the operand, sometimes a single byte, sometimes a 2 byte address
 	instructionTable [256]instructionAndAddrMode //maps first instruction byte to instruction function
 }
