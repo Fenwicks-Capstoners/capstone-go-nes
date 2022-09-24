@@ -226,8 +226,10 @@ func printCmd(args []string) {
 		value = cpu.X
 	case "Y":
 		value = cpu.Y
-	case "A":
+	case "AC":
 		value = cpu.AC
+	case "SR":
+		value = cpu.SR
 	case "S":
 		value = cpu.SP
 	case "CF":

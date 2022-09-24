@@ -280,15 +280,32 @@ func (cpu *CPU) cpy() bool {
 	return false
 
 }
+
+// decrement memory by 1
 func (cpu *CPU) dec() bool {
+	value := cpu.Bus.GetByte(cpu.Operand)
+	value--
+	cpu.setFlag(ZF, value == 0)
+	cpu.setFlag(NF, value&0x80 > 0)
+	cpu.Bus.SetByte(cpu.Operand, value)
 	return false
 
 }
+
+// decrement index X by 1
 func (cpu *CPU) dex() bool {
+	cpu.X--
+	cpu.setFlag(ZF, cpu.X == 0)
+	cpu.setFlag(NF, cpu.X&0x80 > 0)
 	return false
 
 }
+
+// decrement index y by 1
 func (cpu *CPU) dey() bool {
+	cpu.Y--
+	cpu.setFlag(ZF, cpu.Y == 0)
+	cpu.setFlag(NF, cpu.Y&0x80 > 0)
 	return false
 
 }
@@ -296,15 +313,30 @@ func (cpu *CPU) eor() bool {
 	return false
 
 }
+
+// increment memory by 1
 func (cpu *CPU) inc() bool {
+	value := cpu.Bus.GetByte(cpu.Operand)
+	value++
+	cpu.setFlag(ZF, value == 0)
+	cpu.setFlag(NF, value&0x80 > 0)
+	cpu.Bus.SetByte(cpu.Operand, value)
 	return false
 
 }
+
+// increment index x by 1
 func (cpu *CPU) inx() bool {
+	cpu.X++
+	cpu.setFlag(ZF, cpu.X == 0)
+	cpu.setFlag(NF, cpu.X&0x80 > 0)
 	return false
 
 }
 func (cpu *CPU) iny() bool {
+	cpu.Y++
+	cpu.setFlag(ZF, cpu.Y == 0)
+	cpu.setFlag(NF, cpu.Y&0x80 > 0)
 	return false
 
 }
@@ -379,10 +411,8 @@ func (cpu *CPU) pha() bool {
 
 // push processor status to stack
 func (cpu *CPU) php() bool {
-	status := cpu.SR
-	setBit(&status, BF, true)
-	setBit(&status, 5, true)
-	cpu.Bus.SetByte(0x100+uint16(cpu.SP), cpu.AC)
+	status := cpu.SR | 0b00110000 // sets BF and bit 5 to 1
+	cpu.Bus.SetByte(0x100+uint16(cpu.SP), status)
 	cpu.SP--
 	return false
 
@@ -392,7 +422,7 @@ func (cpu *CPU) php() bool {
 func (cpu *CPU) pla() bool {
 	cpu.SP++
 	cpu.AC = cpu.Bus.GetByte(0x100 + uint16(cpu.SP))
-	cpu.setFlag(NF, cpu.AC&0b10000000 > 0)
+	cpu.setFlag(NF, cpu.AC&0x80 > 0)
 	cpu.setFlag(ZF, cpu.AC == 0)
 	return false
 
@@ -401,8 +431,7 @@ func (cpu *CPU) pla() bool {
 // pull processor status from stack
 func (cpu *CPU) plp() bool {
 	cpu.SP++
-	cpu.SR = cpu.Bus.GetByte(0x100 + uint16(cpu.SP))
-	cpu.setFlag(BF, true) //BF always true when not on the stack
+	cpu.SR = cpu.Bus.GetByte(0x100+uint16(cpu.SP)) | 0b00010000 //BF always true when not on the stack
 	return false
 
 }
@@ -472,8 +501,8 @@ func (cpu *CPU) sty() bool {
 // transfer accumulator to index x
 func (cpu *CPU) tax() bool {
 	cpu.X = cpu.AC
-	cpu.setFlag(NF, cpu.X&0b10000000 > 0) //set negative flag
-	cpu.setFlag(ZF, cpu.X == 0)           //set zero flag
+	cpu.setFlag(NF, cpu.X&0x80 > 0) //set negative flag
+	cpu.setFlag(ZF, cpu.X == 0)     //set zero flag
 	return false
 
 }
@@ -481,8 +510,8 @@ func (cpu *CPU) tax() bool {
 // transfer accumulator to index Y
 func (cpu *CPU) tay() bool {
 	cpu.Y = cpu.AC
-	cpu.setFlag(NF, cpu.Y&0b10000000 > 0) //set negative flag
-	cpu.setFlag(ZF, cpu.Y == 0)           //set zero flag
+	cpu.setFlag(NF, cpu.Y&0x80 > 0) //set negative flag
+	cpu.setFlag(ZF, cpu.Y == 0)     //set zero flag
 	return false
 
 }
@@ -490,8 +519,8 @@ func (cpu *CPU) tay() bool {
 // transfer stack pointer to index X
 func (cpu *CPU) tsx() bool {
 	cpu.X = cpu.SP
-	cpu.setFlag(NF, cpu.X&0b10000000 > 0) //set negative flag
-	cpu.setFlag(ZF, cpu.X == 0)           //set zero flag
+	cpu.setFlag(NF, cpu.X&0x80 > 0) //set negative flag
+	cpu.setFlag(ZF, cpu.X == 0)     //set zero flag
 	return false
 
 }
@@ -499,8 +528,8 @@ func (cpu *CPU) tsx() bool {
 // transfer index x to accumulator
 func (cpu *CPU) txa() bool {
 	cpu.AC = cpu.X
-	cpu.setFlag(NF, cpu.AC&0b10000000 > 0) //set negative flag
-	cpu.setFlag(ZF, cpu.AC == 0)           //set zero flag
+	cpu.setFlag(NF, cpu.AC&0x80 > 0) //set negative flag
+	cpu.setFlag(ZF, cpu.AC == 0)     //set zero flag
 	return false
 
 }
@@ -515,8 +544,8 @@ func (cpu *CPU) txs() bool {
 // transfer index y to accumulator
 func (cpu *CPU) tya() bool {
 	cpu.AC = cpu.Y
-	cpu.setFlag(NF, cpu.Y&0b10000000 > 0) //set negative flag
-	cpu.setFlag(ZF, cpu.Y == 0)           //set zero flag
+	cpu.setFlag(NF, cpu.Y&0x80 > 0) //set negative flag
+	cpu.setFlag(ZF, cpu.Y == 0)     //set zero flag
 	return false
 
 }
