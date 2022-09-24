@@ -231,17 +231,19 @@ func printCmd(args []string) {
 	case "S":
 		value = cpu.SP
 	case "CF":
-		value = boolToUint8(cpu.CF)
+		value = boolToUint8(cpu.GetFlag(nes.CF))
 	case "ZF":
-		value = boolToUint8(cpu.ZF)
+		value = boolToUint8(cpu.GetFlag(nes.ZF))
 	case "IF":
-		value = boolToUint8(cpu.IF)
+		value = boolToUint8(cpu.GetFlag(nes.IF))
 	case "DF":
-		value = boolToUint8(cpu.DF)
+		value = boolToUint8(cpu.GetFlag(nes.DF))
 	case "OF":
-		value = boolToUint8(cpu.OF)
+		value = boolToUint8(cpu.GetFlag(nes.OF))
 	case "NF":
-		value = boolToUint8(cpu.NF)
+		value = boolToUint8(cpu.GetFlag(nes.NF))
+	case "BF":
+		value = boolToUint8(cpu.GetFlag(nes.BF))
 	case "OP":
 		fmt.Printf("0x%04X\n", cpu.Operand)
 		return
