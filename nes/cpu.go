@@ -65,10 +65,17 @@ func (cpu *CPU) Get2Bytes(addr uint16) uint16 {
 	return (upperByte << 8) | lowerByte
 }
 
+// sets NF and ZF based on provided uint8
+func (cpu *CPU) setNZFlags(register uint8) {
+	cpu.setFlag(ZF, register == 0)
+	cpu.setFlag(NF, register&0x80 > 0)
+}
+
 // Dealing with Flags
 func (cpu *CPU) GetFlag(flag uint8) bool {
 	return cpu.SR&(0x1<<flag) > 0
 }
+
 func (cpu *CPU) setFlag(flag uint8, value bool) {
 	if value {
 		cpu.SR |= (0x1 << flag) // bitwise or target bit with 1 to set
@@ -211,8 +218,7 @@ func (cpu *CPU) adcProvidedVal(value uint8) bool {
 	if cpu.GetFlag(CF) {
 		cpu.AC++
 	}
-	cpu.setFlag(NF, cpu.AC&0x80 > 0) //check first bit for negative flag
-	cpu.setFlag(ZF, cpu.AC == 0)
+	cpu.setNZFlags(cpu.AC)
 	cpu.setFlag(CF, cpu.AC < oldAc || cpu.AC < value)                //if the final answer is smaller than either of the operands, there was a carry
 	oldAcSign := (oldAc & 0x80) >> 7                                 //get the sign bit of operand 1
 	valSign := (value & 0x80) >> 7                                   //get the sign bit of operand 2
@@ -240,9 +246,7 @@ func (cpu *CPU) adcImm() bool {
 // andImm() will pass the operand
 func (cpu *CPU) andProvidedVal(value uint8) bool {
 	cpu.AC = cpu.AC & value
-	cpu.setFlag(ZF, cpu.AC == 0)
-	cpu.setFlag(NF, cpu.AC&0x8 > 0)
-
+	cpu.setNZFlags(cpu.AC)
 	return false
 
 }
@@ -254,11 +258,24 @@ func (cpu *CPU) andImm() bool {
 	return cpu.andProvidedVal(uint8(cpu.Operand))
 
 }
+
+// shift left one bit (memory)
 func (cpu *CPU) asl() bool {
+	value := cpu.Bus.GetByte(cpu.Operand)
+	cpu.setFlag(CF, value&0x80 > 0) //set CF to bit 7 since it is the bit being shifted out
+	value <<= 1
+	cpu.Bus.SetByte(cpu.Operand, value)
+	cpu.setNZFlags(value)
 	return false
 
 }
+
+// shit left one bit (accumulator)
 func (cpu *CPU) aslA() bool {
+	cpu.setFlag(CF, cpu.AC&0x80 > 0) //set CF to bit 7 since it is the bit being shifted out
+	cpu.AC <<= 1
+	cpu.Bus.SetByte(cpu.Operand, cpu.AC)
+	cpu.setNZFlags(cpu.AC)
 	return false
 
 }
@@ -348,8 +365,7 @@ func (cpu *CPU) cpy() bool {
 func (cpu *CPU) dec() bool {
 	value := cpu.Bus.GetByte(cpu.Operand)
 	value--
-	cpu.setFlag(ZF, value == 0)
-	cpu.setFlag(NF, value&0x80 > 0)
+	cpu.setNZFlags(value)
 	cpu.Bus.SetByte(cpu.Operand, value)
 	return false
 
@@ -358,8 +374,7 @@ func (cpu *CPU) dec() bool {
 // decrement index X by 1
 func (cpu *CPU) dex() bool {
 	cpu.X--
-	cpu.setFlag(ZF, cpu.X == 0)
-	cpu.setFlag(NF, cpu.X&0x80 > 0)
+	cpu.setNZFlags(cpu.X)
 	return false
 
 }
@@ -367,8 +382,7 @@ func (cpu *CPU) dex() bool {
 // decrement index y by 1
 func (cpu *CPU) dey() bool {
 	cpu.Y--
-	cpu.setFlag(ZF, cpu.Y == 0)
-	cpu.setFlag(NF, cpu.Y&0x80 > 0)
+	cpu.setNZFlags(cpu.Y)
 	return false
 
 }
@@ -378,8 +392,7 @@ func (cpu *CPU) dey() bool {
 // eorImm() will pass immediate value
 func (cpu *CPU) eorProvidedValue(value uint8) bool {
 	cpu.AC = cpu.AC ^ value
-	cpu.setFlag(ZF, cpu.AC == 0)
-	cpu.setFlag(NF, cpu.AC&0x8 > 0)
+	cpu.setNZFlags(cpu.AC)
 	return false
 }
 
@@ -397,8 +410,7 @@ func (cpu *CPU) eorImm() bool {
 func (cpu *CPU) inc() bool {
 	value := cpu.Bus.GetByte(cpu.Operand)
 	value++
-	cpu.setFlag(ZF, value == 0)
-	cpu.setFlag(NF, value&0x80 > 0)
+	cpu.setNZFlags(value)
 	cpu.Bus.SetByte(cpu.Operand, value)
 	return false
 
@@ -407,15 +419,13 @@ func (cpu *CPU) inc() bool {
 // increment index x by 1
 func (cpu *CPU) inx() bool {
 	cpu.X++
-	cpu.setFlag(ZF, cpu.X == 0)
-	cpu.setFlag(NF, cpu.X&0x80 > 0)
+	cpu.setNZFlags(cpu.X)
 	return false
 
 }
 func (cpu *CPU) iny() bool {
 	cpu.Y++
-	cpu.setFlag(ZF, cpu.Y == 0)
-	cpu.setFlag(NF, cpu.Y&0x80 > 0)
+	cpu.setNZFlags(cpu.Y)
 	return false
 
 }
@@ -431,43 +441,63 @@ func (cpu *CPU) jsr() bool {
 // load memory into Accumulator
 func (cpu *CPU) lda() bool {
 	cpu.AC = cpu.Bus.GetByte(cpu.Operand)
+	cpu.setNZFlags(cpu.AC)
 	return true
 }
 
 // load immediate value into Accumulator
 func (cpu *CPU) ldaImm() bool {
 	cpu.AC = uint8(cpu.Operand)
+	cpu.setNZFlags(cpu.AC)
 	return true
 }
 
 // load memory into register X
 func (cpu *CPU) ldx() bool {
 	cpu.X = cpu.Bus.GetByte(cpu.Operand)
+	cpu.setNZFlags(cpu.X)
 	return true
 }
 
 // load immediate value into register X
 func (cpu *CPU) ldxImm() bool {
 	cpu.X = uint8(cpu.Operand)
+	cpu.setNZFlags(cpu.X)
 	return true
 }
 
 // load memory into register Y
 func (cpu *CPU) ldy() bool {
 	cpu.Y = cpu.Bus.GetByte(cpu.Operand)
+	cpu.setNZFlags(cpu.Y)
 	return true
 }
 
 // load immediate value into register Y
 func (cpu *CPU) ldyImm() bool {
 	cpu.Y = uint8(cpu.Operand)
+	cpu.setNZFlags(cpu.Y)
 	return true
 }
+
+// logical shift right with memory
 func (cpu *CPU) lsr() bool {
+	value := cpu.Bus.GetByte(cpu.Operand)
+	cpu.setFlag(CF, value&0x1 > 0)
+	newValue := value >> 1
+	cpu.setFlag(NF, false)
+	cpu.setFlag(ZF, newValue == 0)
+	cpu.Bus.SetByte(cpu.Operand, newValue)
 	return false
 
 }
+
+// logical shift right with accumulator
 func (cpu *CPU) lsrA() bool {
+	cpu.setFlag(CF, cpu.AC&0x1 > 0)
+	cpu.AC >>= 1
+	cpu.setFlag(NF, false)
+	cpu.setFlag(ZF, cpu.AC == 0)
 	return false
 
 }
@@ -476,9 +506,8 @@ func (cpu *CPU) nop() bool {
 
 }
 func (cpu *CPU) oraProvidedVal(value uint8) bool {
-	cpu.AC = cpu.AC | value
-	cpu.setFlag(ZF, cpu.AC == 0)
-	cpu.setFlag(NF, cpu.AC&0x8 > 0)
+	cpu.AC |= value
+	cpu.setNZFlags(cpu.AC)
 	return false
 }
 
@@ -513,8 +542,7 @@ func (cpu *CPU) php() bool {
 func (cpu *CPU) pla() bool {
 	cpu.SP++
 	cpu.AC = cpu.Bus.GetByte(0x100 + uint16(cpu.SP))
-	cpu.setFlag(NF, cpu.AC&0x80 > 0)
-	cpu.setFlag(ZF, cpu.AC == 0)
+	cpu.setNZFlags(cpu.AC)
 	return false
 
 }
@@ -526,19 +554,44 @@ func (cpu *CPU) plp() bool {
 	return false
 
 }
+
+// rotate one bit left memory
 func (cpu *CPU) rol() bool {
+	value := cpu.Bus.GetByte(cpu.Operand)
+	cpu.setFlag(CF, value&0x80 > 0) //store bit being shifted out into CF
+	value <<= 1
+	setBit(&value, 0, cpu.GetFlag(CF)) //perform the rotate
+	cpu.Bus.SetByte(cpu.Operand, value)
+	cpu.setNZFlags(value)
 	return false
-
 }
+
+// rotate one bit left accumulator
 func (cpu *CPU) rolA() bool {
+	cpu.setFlag(CF, cpu.AC&0x80 > 0) //store bit being shifted out into CF
+	println(cpu.AC & 0x8)
+	cpu.AC <<= 1
+	setBit(&cpu.AC, 0, cpu.GetFlag(CF)) //perform the rotate
+	cpu.setNZFlags(cpu.AC)
 	return false
 
 }
-func (cpu *CPU) ror() bool {
-	return false
 
+// rotate one bit right memory
+func (cpu *CPU) ror() bool {
+	value := cpu.Bus.GetByte(cpu.Operand)
+	cpu.setFlag(CF, value&0x1 > 0) //store bit being shifted out into CF
+	value >>= 1
+	setBit(&value, 7, cpu.GetFlag(CF)) //perform the rotate
+	cpu.Bus.SetByte(cpu.Operand, value)
+	cpu.setNZFlags(value)
+	return false
 }
 func (cpu *CPU) rorA() bool {
+	cpu.setFlag(CF, cpu.AC&0x1 > 0) //store bit being shifted out into CF
+	cpu.AC >>= 1
+	setBit(&cpu.AC, 7, cpu.GetFlag(CF)) //perform the rotate
+	cpu.setNZFlags(cpu.AC)
 	return false
 
 }
@@ -625,8 +678,8 @@ func (cpu *CPU) sty() bool {
 // transfer accumulator to index x
 func (cpu *CPU) tax() bool {
 	cpu.X = cpu.AC
-	cpu.setFlag(NF, cpu.X&0x80 > 0) //set negative flag
-	cpu.setFlag(ZF, cpu.X == 0)     //set zero flag
+	cpu.setNZFlags(cpu.X)
+
 	return false
 
 }
@@ -634,8 +687,7 @@ func (cpu *CPU) tax() bool {
 // transfer accumulator to index Y
 func (cpu *CPU) tay() bool {
 	cpu.Y = cpu.AC
-	cpu.setFlag(NF, cpu.Y&0x80 > 0) //set negative flag
-	cpu.setFlag(ZF, cpu.Y == 0)     //set zero flag
+	cpu.setNZFlags(cpu.Y)
 	return false
 
 }
@@ -643,8 +695,7 @@ func (cpu *CPU) tay() bool {
 // transfer stack pointer to index X
 func (cpu *CPU) tsx() bool {
 	cpu.X = cpu.SP
-	cpu.setFlag(NF, cpu.X&0x80 > 0) //set negative flag
-	cpu.setFlag(ZF, cpu.X == 0)     //set zero flag
+	cpu.setNZFlags(cpu.X)
 	return false
 
 }
@@ -652,8 +703,7 @@ func (cpu *CPU) tsx() bool {
 // transfer index x to accumulator
 func (cpu *CPU) txa() bool {
 	cpu.AC = cpu.X
-	cpu.setFlag(NF, cpu.AC&0x80 > 0) //set negative flag
-	cpu.setFlag(ZF, cpu.AC == 0)     //set zero flag
+	cpu.setNZFlags(cpu.AC)
 	return false
 
 }
@@ -668,8 +718,7 @@ func (cpu *CPU) txs() bool {
 // transfer index y to accumulator
 func (cpu *CPU) tya() bool {
 	cpu.AC = cpu.Y
-	cpu.setFlag(NF, cpu.Y&0x80 > 0) //set negative flag
-	cpu.setFlag(ZF, cpu.Y == 0)     //set zero flag
+	cpu.setNZFlags(cpu.Y)
 	return false
 
 }
