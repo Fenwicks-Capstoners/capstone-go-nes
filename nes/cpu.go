@@ -16,13 +16,15 @@ type instructionAndAddrMode struct {
 	cycles int
 }
 type CPU struct {
-	Bus              *BUS
-	AC               uint8                       //accumulator register
-	X                uint8                       //index register
-	Y                uint8                       //index register
-	SR               uint8                       //status register
-	SP               uint8                       //stack pointer
-	PC               uint16                      //program counter                     // negative flag
+	Bus *BUS
+	AC  uint8  //accumulator register
+	X   uint8  //index register
+	Y   uint8  //index register
+	SR  uint8  //status register
+	SP  uint8  //stack pointer
+	PC  uint16 //program counter
+	//helper fields
+	isImmediate      bool                        //true if the operand is an immediate value and not an address
 	RemCycles        int                         //cycles left in current instruction
 	Operand          uint16                      // the operand, sometimes a single byte, sometimes a 2 byte address
 	instructionTable [256]instructionAndAddrMode //maps first instruction byte to instruction function
@@ -42,7 +44,7 @@ func (a *CPU) populateInstructionTable() {
 		{a.bmi, a.relative, 2}, {a.and, a.indirectIndex, 5}, {a.xxx, a.implied, 4}, {a.xxx, a.indirectIndex, 4}, {a.xxx, a.zeroPageX, 4}, {a.and, a.zeroPageX, 4}, {a.rol, a.zeroPageX, 5}, {a.xxx, a.zeroPageX, 4}, {a.sec, a.implied, 2}, {a.and, a.absoluteY, 4}, {a.xxx, a.implied, 4}, {a.xxx, a.indirectIndex, 4}, {a.xxx, a.absoluteX, 4}, {a.and, a.absoluteX, 4}, {a.rol, a.absoluteX, 7}, {a.xxx, a.absoluteX, 4},
 		{a.rti, a.implied, 6}, {a.eor, a.indexIndirect, 6}, {a.xxx, a.implied, 4}, {a.xxx, a.indexIndirect, 4}, {a.xxx, a.zeroPage, 4}, {a.eor, a.zeroPage, 3}, {a.lsr, a.zeroPage, 5}, {a.xxx, a.zeroPage, 4}, {a.pha, a.implied, 3}, {a.eor, a.immediate, 2}, {a.lsrA, a.accumulator, 2}, {a.xxx, a.immediate, 4}, {a.jmp, a.absolute, 3}, {a.eor, a.absolute, 4}, {a.lsr, a.absolute, 6}, {a.xxx, a.absolute, 4},
 		{a.bvc, a.relative, 2}, {a.eor, a.indirectIndex, 5}, {a.xxx, a.implied, 4}, {a.xxx, a.indirectIndex, 4}, {a.xxx, a.zeroPageX, 4}, {a.eor, a.zeroPageX, 4}, {a.lsr, a.zeroPageX, 6}, {a.xxx, a.zeroPageX, 4}, {a.cli, a.implied, 2}, {a.eor, a.absoluteY, 4}, {a.xxx, a.implied, 4}, {a.xxx, a.indirectIndex, 4}, {a.xxx, a.absoluteX, 4}, {a.eor, a.absoluteX, 4}, {a.lsr, a.absoluteX, 7}, {a.xxx, a.absoluteX, 4},
-		{a.rts, a.implied, 6}, {a.adc, a.indexIndirect, 6}, {a.xxx, a.implied, 4}, {a.xxx, a.indexIndirect, 4}, {a.xxx, a.zeroPage, 4}, {a.adc, a.zeroPage, 3}, {a.ror, a.zeroPage, 5}, {a.xxx, a.zeroPage, 4}, {a.pla, a.implied, 4}, {a.adc, a.immediate, 2}, {a.rorA, a.accumulator, 2}, {a.xxx, a.immediate, 4}, {a.jmp, a.indirect, 5}, {a.adc, a.absolute, 4}, {a.ror, a.absolute, 6}, {a.xxx, a.absolute, 4},
+		{a.rts, a.implied, 6}, {a.adc, a.indexIndirect, 6}, {a.xxx, a.implied, 4}, {a.xxx, a.indexIndirect, 4}, {a.xxx, a.zeroPage, 4}, {a.adc, a.zeroPage, 3}, {a.ror, a.zeroPage, 5}, {a.xxx, a.zeroPage, 4}, {a.pla, a.implied, 4}, {a.adcImm, a.immediate, 2}, {a.rorA, a.accumulator, 2}, {a.xxx, a.immediate, 4}, {a.jmp, a.indirect, 5}, {a.adc, a.absolute, 4}, {a.ror, a.absolute, 6}, {a.xxx, a.absolute, 4},
 		{a.bvs, a.relative, 2}, {a.adc, a.indirectIndex, 5}, {a.xxx, a.implied, 4}, {a.xxx, a.indirectIndex, 4}, {a.xxx, a.zeroPageX, 4}, {a.adc, a.zeroPageX, 4}, {a.ror, a.zeroPageX, 6}, {a.xxx, a.zeroPageX, 4}, {a.sei, a.implied, 2}, {a.adc, a.absoluteY, 4}, {a.xxx, a.implied, 4}, {a.xxx, a.indexIndirect, 4}, {a.xxx, a.absoluteX, 4}, {a.adc, a.absoluteX, 4}, {a.ror, a.absoluteX, 7}, {a.xxx, a.absoluteX, 4},
 		{a.xxx, a.immediate, 4}, {a.sta, a.indexIndirect, 6}, {a.xxx, a.immediate, 4}, {a.xxx, a.indexIndirect, 4}, {a.sty, a.zeroPage, 3}, {a.sta, a.zeroPage, 3}, {a.stx, a.zeroPage, 3}, {a.xxx, a.zeroPage, 4}, {a.dey, a.implied, 2}, {a.xxx, a.immediate, 4}, {a.txa, a.implied, 2}, {a.xxx, a.immediate, 4}, {a.sty, a.absolute, 4}, {a.sta, a.absolute, 4}, {a.stx, a.absolute, 4}, {a.xxx, a.absolute, 4},
 		{a.bcc, a.relative, 2}, {a.sta, a.indirectIndex, 6}, {a.xxx, a.implied, 4}, {a.xxx, a.indirectIndex, 4}, {a.sty, a.zeroPageX, 4}, {a.sta, a.zeroPageX, 4}, {a.stx, a.zeroPageY, 4}, {a.xxx, a.zeroPageY, 4}, {a.tya, a.implied, 2}, {a.sta, a.absoluteY, 5}, {a.txs, a.implied, 2}, {a.xxx, a.absoluteY, 4}, {a.xxx, a.absoluteX, 4}, {a.sta, a.absoluteX, 5}, {a.xxx, a.absoluteY, 4}, {a.xxx, a.absoluteY, 4},
@@ -50,7 +52,7 @@ func (a *CPU) populateInstructionTable() {
 		{a.bcs, a.relative, 2}, {a.lda, a.indirectIndex, 5}, {a.xxx, a.implied, 4}, {a.xxx, a.indirectIndex, 4}, {a.ldy, a.zeroPageX, 4}, {a.lda, a.zeroPageX, 4}, {a.ldx, a.zeroPageY, 4}, {a.xxx, a.zeroPageY, 4}, {a.clv, a.implied, 2}, {a.lda, a.absoluteY, 4}, {a.tsx, a.implied, 2}, {a.xxx, a.absoluteY, 4}, {a.ldy, a.absoluteX, 4}, {a.lda, a.absoluteX, 4}, {a.ldx, a.absoluteY, 4}, {a.xxx, a.absoluteY, 4},
 		{a.cpy, a.immediate, 2}, {a.cmp, a.indexIndirect, 6}, {a.xxx, a.immediate, 4}, {a.xxx, a.indexIndirect, 4}, {a.cpy, a.zeroPage, 3}, {a.cmp, a.zeroPage, 3}, {a.dec, a.zeroPage, 5}, {a.xxx, a.zeroPage, 4}, {a.iny, a.implied, 2}, {a.cmp, a.immediate, 2}, {a.dex, a.implied, 2}, {a.xxx, a.immediate, 4}, {a.cpy, a.absolute, 4}, {a.cmp, a.absolute, 4}, {a.dec, a.absolute, 6}, {a.xxx, a.absolute, 4},
 		{a.bne, a.relative, 2}, {a.cmp, a.indirectIndex, 5}, {a.xxx, a.implied, 4}, {a.xxx, a.indirectIndex, 4}, {a.xxx, a.zeroPageX, 4}, {a.cmp, a.zeroPageX, 4}, {a.dec, a.zeroPageX, 6}, {a.xxx, a.zeroPageX, 4}, {a.cld, a.implied, 2}, {a.cmp, a.absoluteY, 4}, {a.xxx, a.implied, 4}, {a.xxx, a.absoluteY, 4}, {a.xxx, a.absoluteX, 4}, {a.cmp, a.absoluteX, 4}, {a.dec, a.absoluteX, 7}, {a.xxx, a.absoluteX, 4},
-		{a.cpx, a.immediate, 2}, {a.sbc, a.indexIndirect, 6}, {a.xxx, a.immediate, 4}, {a.xxx, a.indexIndirect, 4}, {a.cpx, a.zeroPage, 3}, {a.sbc, a.zeroPage, 3}, {a.inc, a.zeroPage, 5}, {a.xxx, a.zeroPage, 4}, {a.inx, a.implied, 2}, {a.sbc, a.immediate, 2}, {a.nop, a.implied, 2}, {a.xxx, a.immediate, 4}, {a.cpx, a.absolute, 4}, {a.sbc, a.absolute, 4}, {a.inc, a.absolute, 6}, {a.xxx, a.absolute, 4},
+		{a.cpx, a.immediate, 2}, {a.sbc, a.indexIndirect, 6}, {a.xxx, a.immediate, 4}, {a.xxx, a.indexIndirect, 4}, {a.cpx, a.zeroPage, 3}, {a.sbc, a.zeroPage, 3}, {a.inc, a.zeroPage, 5}, {a.xxx, a.zeroPage, 4}, {a.inx, a.implied, 2}, {a.sbcImm, a.immediate, 2}, {a.nop, a.implied, 2}, {a.xxx, a.immediate, 4}, {a.cpx, a.absolute, 4}, {a.sbc, a.absolute, 4}, {a.inc, a.absolute, 6}, {a.xxx, a.absolute, 4},
 		{a.beq, a.relative, 2}, {a.sbc, a.indirectIndex, 5}, {a.xxx, a.implied, 4}, {a.xxx, a.indirectIndex, 4}, {a.xxx, a.zeroPageX, 4}, {a.sbc, a.zeroPageX, 4}, {a.inc, a.zeroPageX, 6}, {a.xxx, a.zeroPageX, 4}, {a.sed, a.implied, 2}, {a.sbc, a.absoluteY, 4}, {a.xxx, a.implied, 4}, {a.xxx, a.absoluteY, 4}, {a.xxx, a.absoluteX, 4}, {a.sbc, a.absoluteX, 4}, {a.inc, a.absoluteX, 7}, {a.xxx, a.absoluteX, 4},
 	}
 }
@@ -197,8 +199,39 @@ Instruction Functions
 func (cpu *CPU) xxx() bool { //invalid opcode will treat as NOP for now
 	return false
 }
-func (cpu *CPU) adc() bool {
+
+// core behavior of adc but the value is provided instead of read from the operand or memory
+// this is so adc simply passes the value read from memory to the value parameter
+// and adcImm (when it is using immediate addressing) just passes the operand directly
+// this is to prevent writing the same code twice or relying on a global isImmediate flag that could be error prone
+func (cpu *CPU) adcProvidedVal(value uint8) bool {
+	oldAc := cpu.AC
+	cpu.AC += value //add accumulator and memory
+	//add the carry flag
+	if cpu.GetFlag(CF) {
+		cpu.AC++
+	}
+	cpu.setFlag(NF, cpu.AC&0x80 > 0) //check first bit for negative flag
+	cpu.setFlag(ZF, cpu.AC == 0)
+	cpu.setFlag(CF, cpu.AC < oldAc || cpu.AC < value)                //if the final answer is smaller than either of the operands, there was a carry
+	oldAcSign := (oldAc & 0x80) >> 7                                 //get the sign bit of operand 1
+	valSign := (value & 0x80) >> 7                                   //get the sign bit of operand 2
+	AcSign := (cpu.AC & 0x80) >> 7                                   //get the sign bit of the sum
+	cpu.setFlag(OF, ^((oldAcSign^valSign)|^(oldAcSign^AcSign)) == 1) //set overflow flag
 	return false
+}
+
+// add memory to accumulator with carry
+// NOTE: Ignoring Decimal Mode since the NES doesn't support it
+func (cpu *CPU) adc() bool {
+	//call the core function with the memory value
+	return cpu.adcProvidedVal(cpu.Bus.GetByte(cpu.Operand))
+}
+
+// calls the adcProvidedval, passing the immediate value (operand)
+func (cpu *CPU) adcImm() bool {
+	return cpu.adcProvidedVal(uint8(cpu.Operand))
+
 }
 func (cpu *CPU) and() bool {
 	return false
@@ -252,19 +285,32 @@ func (cpu *CPU) bvs() bool {
 	return false
 
 }
+
+// clear the carry flag
 func (cpu *CPU) clc() bool {
+	cpu.setFlag(CF, false)
 	return false
 
 }
+
+// clear decimal flag
+// NOTE: NES doesn't support decimal mode so neither will this emulator
 func (cpu *CPU) cld() bool {
+	cpu.setFlag(DF, false)
 	return false
 
 }
+
+// clear interrupt flag
 func (cpu *CPU) cli() bool {
+	cpu.setFlag(IF, false)
 	return false
 
 }
+
+// clear overflow flag
 func (cpu *CPU) clv() bool {
+	cpu.setFlag(OF, false)
 	return false
 
 }
@@ -459,19 +505,53 @@ func (cpu *CPU) rts() bool {
 	return false
 
 }
+
+// core functionality of sbc but uses a value parameter
+// sbc will provide the value form memory
+// sbcImm will provide the operand directly
+// Normally 2's complement subtraction works as follows:
+// a - b
+// flip the bits of b and add 1 to make it negative
+// then simply compute a + ^b + 1
+// BUT SBC doesn't do the +1
+// To achieve true subtraction, the carry flag must be set
+// This is because sbc uses the same logic as ADC so it achieves ^b+1 when the carry is set
+// since ADC adds the carry value
+// This means to get proper subtraction, you must first set the carry flag using SEC
+func (cpu *CPU) sbcProvidedVal(value uint8) bool {
+	return cpu.adcProvidedVal(^value)
+}
+
+// sbc when value is from memory
 func (cpu *CPU) sbc() bool {
-	return false
+	return cpu.sbcProvidedVal(cpu.Bus.GetByte(cpu.Operand))
 
 }
+
+// sbc when value is immediate
+func (cpu *CPU) sbcImm() bool {
+	return cpu.sbcProvidedVal(uint8(cpu.Operand))
+
+}
+
+// set the carry flag
 func (cpu *CPU) sec() bool {
+	cpu.setFlag(CF, true)
 	return false
 
 }
+
+// set decimal flag
+// NOTE: NES doesnt support decimal mode so neither will this emulator
 func (cpu *CPU) sed() bool {
+	cpu.setFlag(DF, true)
 	return false
 
 }
+
+// set the interrupt flag
 func (cpu *CPU) sei() bool {
+	cpu.setFlag(IF, true)
 	return false
 
 }
@@ -493,7 +573,6 @@ func (cpu *CPU) stx() bool {
 // store index Y in memory
 func (cpu *CPU) sty() bool {
 	cpu.Bus.SetByte(cpu.Operand, cpu.Y)
-
 	return false
 
 }
