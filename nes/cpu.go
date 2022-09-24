@@ -1,5 +1,13 @@
 package nes
 
+const NF = 7
+const OF = 6
+const BF = 4
+const DF = 3
+const IF = 2
+const ZF = 1
+const CF = 0
+
 type instructionAndAddrMode struct {
 	instr    func() bool //runs instruction, returns true if instruction could possibly take an extra cycle
 	addrMode func() bool //updates operand and returns true if there is the possibility
@@ -12,14 +20,9 @@ type CPU struct {
 	AC               uint8                       //accumulator register
 	X                uint8                       //index register
 	Y                uint8                       //index register
+	SR               uint8                       //status register
 	SP               uint8                       //stack pointer
-	PC               uint16                      //program counter
-	CF               bool                        // carry flag
-	ZF               bool                        // zero flag
-	IF               bool                        // interrupt disable flag
-	DF               bool                        // decimal flag
-	OF               bool                        // overflow flag
-	NF               bool                        // negative flag
+	PC               uint16                      //program counter                     // negative flag
 	RemCycles        int                         //cycles left in current instruction
 	Operand          uint16                      // the operand, sometimes a single byte, sometimes a 2 byte address
 	instructionTable [256]instructionAndAddrMode //maps first instruction byte to instruction function
@@ -58,6 +61,25 @@ func (cpu *CPU) Get2Bytes(addr uint16) uint16 {
 	lowerByte := uint16(cpu.Bus.GetByte(addr))
 	upperByte := uint16(cpu.Bus.GetByte(addr + 1))
 	return (upperByte << 8) | lowerByte
+}
+
+// Dealing with Flags
+func (cpu *CPU) GetFlag(flag uint8) bool {
+	return cpu.SR&(0x1<<flag) > 0
+}
+func (cpu *CPU) setFlag(flag uint8, value bool) {
+	if value {
+		cpu.SR |= (0x1 << flag) // bitwise or target bit with 1 to set
+	} else {
+		cpu.SR &^= (0x1 << flag) //bitwise and everything with 1 except the target bit (hence the and not equals &^=)
+	}
+}
+func setBit(number *uint8, bit uint8, value bool) {
+	if value {
+		*number |= (0x1 << bit) // bitwise or target bit with 1 to set
+	} else {
+		*number &^= (0x1 << bit) //bitwise and everything with 1 except the target bit (hence the and not equals &^=)
+	}
 }
 
 /*
@@ -346,19 +368,41 @@ func (cpu *CPU) ora() bool {
 	return false
 
 }
+
+// push accumulator to stack
 func (cpu *CPU) pha() bool {
+	cpu.Bus.SetByte(0x100+uint16(cpu.SP), cpu.AC)
+	cpu.SP--
 	return false
 
 }
+
+// push processor status to stack
 func (cpu *CPU) php() bool {
+	status := cpu.SR
+	setBit(&status, BF, true)
+	setBit(&status, 5, true)
+	cpu.Bus.SetByte(0x100+uint16(cpu.SP), cpu.AC)
+	cpu.SP--
 	return false
 
 }
+
+// pull accumulator from stack
 func (cpu *CPU) pla() bool {
+	cpu.SP++
+	cpu.AC = cpu.Bus.GetByte(0x100 + uint16(cpu.SP))
+	cpu.setFlag(NF, cpu.AC&0b10000000 > 0)
+	cpu.setFlag(ZF, cpu.AC == 0)
 	return false
 
 }
+
+// pull processor status from stack
 func (cpu *CPU) plp() bool {
+	cpu.SP++
+	cpu.SR = cpu.Bus.GetByte(0x100 + uint16(cpu.SP))
+	cpu.setFlag(BF, true) //BF always true when not on the stack
 	return false
 
 }
@@ -428,8 +472,8 @@ func (cpu *CPU) sty() bool {
 // transfer accumulator to index x
 func (cpu *CPU) tax() bool {
 	cpu.X = cpu.AC
-	cpu.NF = (cpu.X & 0b10000000) == 1 //set negative flag
-	cpu.ZF = cpu.X == 0
+	cpu.setFlag(NF, cpu.X&0b10000000 > 0) //set negative flag
+	cpu.setFlag(ZF, cpu.X == 0)           //set zero flag
 	return false
 
 }
@@ -437,8 +481,8 @@ func (cpu *CPU) tax() bool {
 // transfer accumulator to index Y
 func (cpu *CPU) tay() bool {
 	cpu.Y = cpu.AC
-	cpu.NF = (cpu.Y & 0b10000000) == 1 //set negative flag
-	cpu.ZF = cpu.Y == 0
+	cpu.setFlag(NF, cpu.Y&0b10000000 > 0) //set negative flag
+	cpu.setFlag(ZF, cpu.Y == 0)           //set zero flag
 	return false
 
 }
@@ -446,8 +490,8 @@ func (cpu *CPU) tay() bool {
 // transfer stack pointer to index X
 func (cpu *CPU) tsx() bool {
 	cpu.X = cpu.SP
-	cpu.NF = (cpu.X & 0b10000000) == 1 //set negative flag
-	cpu.ZF = cpu.X == 0
+	cpu.setFlag(NF, cpu.X&0b10000000 > 0) //set negative flag
+	cpu.setFlag(ZF, cpu.X == 0)           //set zero flag
 	return false
 
 }
@@ -455,8 +499,8 @@ func (cpu *CPU) tsx() bool {
 // transfer index x to accumulator
 func (cpu *CPU) txa() bool {
 	cpu.AC = cpu.X
-	cpu.NF = (cpu.AC & 0b10000000) == 1 //set negative flag
-	cpu.ZF = cpu.AC == 0
+	cpu.setFlag(NF, cpu.AC&0b10000000 > 0) //set negative flag
+	cpu.setFlag(ZF, cpu.AC == 0)           //set zero flag
 	return false
 
 }
@@ -471,15 +515,16 @@ func (cpu *CPU) txs() bool {
 // transfer index y to accumulator
 func (cpu *CPU) tya() bool {
 	cpu.AC = cpu.Y
-	cpu.NF = (cpu.AC & 0b10000000) == 1 //set negative flag
-	cpu.ZF = cpu.AC == 0
+	cpu.setFlag(NF, cpu.Y&0b10000000 > 0) //set negative flag
+	cpu.setFlag(ZF, cpu.Y == 0)           //set zero flag
 	return false
 
 }
 
 func (cpu *CPU) Reset() {
-	cpu.SP = 0xFF //stack starts at 0x01FF and grows down
-	cpu.PC = cpu.Get2Bytes(0xFFFC)
+	cpu.SP = 0xFF                  //stack starts at 0x01FF and grows down
+	cpu.SR = 0b00110000            //reset status register
+	cpu.PC = cpu.Get2Bytes(0xFFFC) //retrieve program counter
 }
 
 // Cycles the cpu
