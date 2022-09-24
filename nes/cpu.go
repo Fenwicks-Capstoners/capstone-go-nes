@@ -40,9 +40,9 @@ func (a *CPU) populateInstructionTable() {
 	a.instructionTable = [256]instructionAndAddrMode{
 		{a.brk, a.implied, 7}, {a.ora, a.indexIndirect, 6}, {a.xxx, a.implied, 4}, {a.xxx, a.indexIndirect, 4}, {a.xxx, a.zeroPage, 4}, {a.ora, a.zeroPage, 3}, {a.asl, a.zeroPage, 5}, {a.xxx, a.zeroPage, 4}, {a.php, a.implied, 3}, {a.ora, a.immediate, 2}, {a.aslA, a.accumulator, 2}, {a.xxx, a.immediate, 4}, {a.xxx, a.absolute, 4}, {a.ora, a.absolute, 4}, {a.asl, a.absolute, 6}, {a.xxx, a.absolute, 4},
 		{a.bpl, a.relative, 2}, {a.ora, a.indirectIndex, 5}, {a.xxx, a.implied, 4}, {a.xxx, a.indirectIndex, 4}, {a.xxx, a.zeroPageX, 4}, {a.ora, a.zeroPageX, 4}, {a.asl, a.zeroPageX, 6}, {a.xxx, a.zeroPageX, 4}, {a.clc, a.implied, 2}, {a.ora, a.absoluteY, 4}, {a.xxx, a.implied, 4}, {a.xxx, a.indirectIndex, 4}, {a.xxx, a.absoluteX, 4}, {a.ora, a.absoluteX, 4}, {a.asl, a.absoluteX, 7}, {a.xxx, a.absoluteX, 4},
-		{a.jsr, a.absolute, 6}, {a.and, a.indexIndirect, 6}, {a.xxx, a.implied, 4}, {a.xxx, a.indexIndirect, 4}, {a.bit, a.zeroPage, 3}, {a.and, a.zeroPage, 3}, {a.rol, a.zeroPage, 5}, {a.xxx, a.zeroPage, 4}, {a.plp, a.implied, 4}, {a.and, a.immediate, 2}, {a.rolA, a.accumulator, 2}, {a.xxx, a.immediate, 4}, {a.bit, a.absolute, 4}, {a.and, a.absolute, 4}, {a.rol, a.absolute, 6}, {a.xxx, a.absolute, 4},
+		{a.jsr, a.absolute, 6}, {a.and, a.indexIndirect, 6}, {a.xxx, a.implied, 4}, {a.xxx, a.indexIndirect, 4}, {a.bit, a.zeroPage, 3}, {a.and, a.zeroPage, 3}, {a.rol, a.zeroPage, 5}, {a.xxx, a.zeroPage, 4}, {a.plp, a.implied, 4}, {a.andImm, a.immediate, 2}, {a.rolA, a.accumulator, 2}, {a.xxx, a.immediate, 4}, {a.bit, a.absolute, 4}, {a.and, a.absolute, 4}, {a.rol, a.absolute, 6}, {a.xxx, a.absolute, 4},
 		{a.bmi, a.relative, 2}, {a.and, a.indirectIndex, 5}, {a.xxx, a.implied, 4}, {a.xxx, a.indirectIndex, 4}, {a.xxx, a.zeroPageX, 4}, {a.and, a.zeroPageX, 4}, {a.rol, a.zeroPageX, 5}, {a.xxx, a.zeroPageX, 4}, {a.sec, a.implied, 2}, {a.and, a.absoluteY, 4}, {a.xxx, a.implied, 4}, {a.xxx, a.indirectIndex, 4}, {a.xxx, a.absoluteX, 4}, {a.and, a.absoluteX, 4}, {a.rol, a.absoluteX, 7}, {a.xxx, a.absoluteX, 4},
-		{a.rti, a.implied, 6}, {a.eor, a.indexIndirect, 6}, {a.xxx, a.implied, 4}, {a.xxx, a.indexIndirect, 4}, {a.xxx, a.zeroPage, 4}, {a.eor, a.zeroPage, 3}, {a.lsr, a.zeroPage, 5}, {a.xxx, a.zeroPage, 4}, {a.pha, a.implied, 3}, {a.eor, a.immediate, 2}, {a.lsrA, a.accumulator, 2}, {a.xxx, a.immediate, 4}, {a.jmp, a.absolute, 3}, {a.eor, a.absolute, 4}, {a.lsr, a.absolute, 6}, {a.xxx, a.absolute, 4},
+		{a.rti, a.implied, 6}, {a.eor, a.indexIndirect, 6}, {a.xxx, a.implied, 4}, {a.xxx, a.indexIndirect, 4}, {a.xxx, a.zeroPage, 4}, {a.eor, a.zeroPage, 3}, {a.lsr, a.zeroPage, 5}, {a.xxx, a.zeroPage, 4}, {a.pha, a.implied, 3}, {a.eorImm, a.immediate, 2}, {a.lsrA, a.accumulator, 2}, {a.xxx, a.immediate, 4}, {a.jmp, a.absolute, 3}, {a.eor, a.absolute, 4}, {a.lsr, a.absolute, 6}, {a.xxx, a.absolute, 4},
 		{a.bvc, a.relative, 2}, {a.eor, a.indirectIndex, 5}, {a.xxx, a.implied, 4}, {a.xxx, a.indirectIndex, 4}, {a.xxx, a.zeroPageX, 4}, {a.eor, a.zeroPageX, 4}, {a.lsr, a.zeroPageX, 6}, {a.xxx, a.zeroPageX, 4}, {a.cli, a.implied, 2}, {a.eor, a.absoluteY, 4}, {a.xxx, a.implied, 4}, {a.xxx, a.indirectIndex, 4}, {a.xxx, a.absoluteX, 4}, {a.eor, a.absoluteX, 4}, {a.lsr, a.absoluteX, 7}, {a.xxx, a.absoluteX, 4},
 		{a.rts, a.implied, 6}, {a.adc, a.indexIndirect, 6}, {a.xxx, a.implied, 4}, {a.xxx, a.indexIndirect, 4}, {a.xxx, a.zeroPage, 4}, {a.adc, a.zeroPage, 3}, {a.ror, a.zeroPage, 5}, {a.xxx, a.zeroPage, 4}, {a.pla, a.implied, 4}, {a.adcImm, a.immediate, 2}, {a.rorA, a.accumulator, 2}, {a.xxx, a.immediate, 4}, {a.jmp, a.indirect, 5}, {a.adc, a.absolute, 4}, {a.ror, a.absolute, 6}, {a.xxx, a.absolute, 4},
 		{a.bvs, a.relative, 2}, {a.adc, a.indirectIndex, 5}, {a.xxx, a.implied, 4}, {a.xxx, a.indirectIndex, 4}, {a.xxx, a.zeroPageX, 4}, {a.adc, a.zeroPageX, 4}, {a.ror, a.zeroPageX, 6}, {a.xxx, a.zeroPageX, 4}, {a.sei, a.implied, 2}, {a.adc, a.absoluteY, 4}, {a.xxx, a.implied, 4}, {a.xxx, a.indexIndirect, 4}, {a.xxx, a.absoluteX, 4}, {a.adc, a.absoluteX, 4}, {a.ror, a.absoluteX, 7}, {a.xxx, a.absoluteX, 4},
@@ -233,8 +233,25 @@ func (cpu *CPU) adcImm() bool {
 	return cpu.adcProvidedVal(uint8(cpu.Operand))
 
 }
-func (cpu *CPU) and() bool {
+
+// sets accumulator to accumulator & value
+// core functionality of AND
+// and() will pass the byte from memory
+// andImm() will pass the operand
+func (cpu *CPU) andProvidedVal(value uint8) bool {
+	cpu.AC = cpu.AC & value
+	cpu.setFlag(ZF, cpu.AC == 0)
+	cpu.setFlag(NF, cpu.AC&0x8 > 0)
+
 	return false
+
+}
+func (cpu *CPU) and() bool {
+	return cpu.andProvidedVal(cpu.Bus.GetByte(cpu.Operand))
+
+}
+func (cpu *CPU) andImm() bool {
+	return cpu.andProvidedVal(uint8(cpu.Operand))
 
 }
 func (cpu *CPU) asl() bool {
@@ -355,9 +372,25 @@ func (cpu *CPU) dey() bool {
 	return false
 
 }
-func (cpu *CPU) eor() bool {
-	return false
 
+// core functionality of eor
+// eor() will pass byte from memory
+// eorImm() will pass immediate value
+func (cpu *CPU) eorProvidedValue(value uint8) bool {
+	cpu.AC = cpu.AC ^ value
+	cpu.setFlag(ZF, cpu.AC == 0)
+	cpu.setFlag(NF, cpu.AC&0x8 > 0)
+	return false
+}
+
+// call eor with value from memory
+func (cpu *CPU) eor() bool {
+	return cpu.eorProvidedValue(cpu.Bus.GetByte(cpu.Operand))
+}
+
+// call eor with immediate value
+func (cpu *CPU) eorImm() bool {
+	return cpu.eorProvidedValue(uint8(cpu.Operand))
 }
 
 // increment memory by 1
@@ -442,9 +475,21 @@ func (cpu *CPU) nop() bool {
 	return false
 
 }
-func (cpu *CPU) ora() bool {
+func (cpu *CPU) oraProvidedVal(value uint8) bool {
+	cpu.AC = cpu.AC | value
+	cpu.setFlag(ZF, cpu.AC == 0)
+	cpu.setFlag(NF, cpu.AC&0x8 > 0)
 	return false
+}
 
+// ora with value in memory
+func (cpu *CPU) ora() bool {
+	return cpu.oraProvidedVal(cpu.Bus.GetByte(cpu.Operand))
+}
+
+// ora with immediate value
+func (cpu *CPU) oraImm() bool {
+	return cpu.oraProvidedVal(uint8(cpu.Operand))
 }
 
 // push accumulator to stack
