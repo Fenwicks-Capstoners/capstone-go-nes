@@ -25,7 +25,7 @@ type CPU struct {
 	PC  uint16 //program counter
 	//helper fields
 	RemCycles        int                         //cycles left in current instruction
-	OperandAddr      uint16                      // the operand, sometimes a single byte, sometimes a 2 byte address
+	OperandAddr      uint16                      // the address in RAM of the operand
 	instructionTable [256]instructionAndAddrMode //maps first instruction byte to instruction function
 }
 
