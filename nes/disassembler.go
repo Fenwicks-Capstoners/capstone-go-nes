@@ -112,5 +112,5 @@ func absoluteY(i int, data []byte) (int, string) {
 	return i + 3, fmt.Sprintf("$%02X%02X, Y", data[i+2], data[i+1])
 }
 func indirect(i int, data []byte) (int, string) {
-	return i + 3, fmt.Sprintf("$%02X%02X", data[i+2], data[i+1])
+	return i + 3, fmt.Sprintf("($%02X%02X)", data[i+2], data[i+1])
 }
