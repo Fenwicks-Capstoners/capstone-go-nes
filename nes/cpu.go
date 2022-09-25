@@ -25,7 +25,7 @@ type CPU struct {
 	PC  uint16 //program counter
 	//helper fields
 	RemCycles        int                         //cycles left in current instruction
-	Operand          uint16                      // the operand, sometimes a single byte, sometimes a 2 byte address
+	OperandAddr      uint16                      // the operand, sometimes a single byte, sometimes a 2 byte address
 	instructionTable [256]instructionAndAddrMode //maps first instruction byte to instruction function
 }
 
@@ -37,21 +37,21 @@ func CreateCPU(bus *BUS) *CPU {
 }
 func (a *CPU) populateInstructionTable() {
 	a.instructionTable = [256]instructionAndAddrMode{
-		{a.brk, a.implied, 7}, {a.ora, a.indexIndirect, 6}, {a.xxx, a.implied, 4}, {a.xxx, a.indexIndirect, 4}, {a.xxx, a.zeroPage, 4}, {a.ora, a.zeroPage, 3}, {a.asl, a.zeroPage, 5}, {a.xxx, a.zeroPage, 4}, {a.php, a.implied, 3}, {a.oraImm, a.immediate, 2}, {a.aslA, a.accumulator, 2}, {a.xxx, a.immediate, 4}, {a.xxx, a.absolute, 4}, {a.ora, a.absolute, 4}, {a.asl, a.absolute, 6}, {a.xxx, a.absolute, 4},
+		{a.brk, a.implied, 7}, {a.ora, a.indexIndirect, 6}, {a.xxx, a.implied, 4}, {a.xxx, a.indexIndirect, 4}, {a.xxx, a.zeroPage, 4}, {a.ora, a.zeroPage, 3}, {a.asl, a.zeroPage, 5}, {a.xxx, a.zeroPage, 4}, {a.php, a.implied, 3}, {a.ora, a.immediate, 2}, {a.aslA, a.accumulator, 2}, {a.xxx, a.immediate, 4}, {a.xxx, a.absolute, 4}, {a.ora, a.absolute, 4}, {a.asl, a.absolute, 6}, {a.xxx, a.absolute, 4},
 		{a.bpl, a.relative, 2}, {a.ora, a.indirectIndex, 5}, {a.xxx, a.implied, 4}, {a.xxx, a.indirectIndex, 4}, {a.xxx, a.zeroPageX, 4}, {a.ora, a.zeroPageX, 4}, {a.asl, a.zeroPageX, 6}, {a.xxx, a.zeroPageX, 4}, {a.clc, a.implied, 2}, {a.ora, a.absoluteY, 4}, {a.xxx, a.implied, 4}, {a.xxx, a.indirectIndex, 4}, {a.xxx, a.absoluteX, 4}, {a.ora, a.absoluteX, 4}, {a.asl, a.absoluteX, 7}, {a.xxx, a.absoluteX, 4},
-		{a.jsr, a.absolute, 6}, {a.and, a.indexIndirect, 6}, {a.xxx, a.implied, 4}, {a.xxx, a.indexIndirect, 4}, {a.bit, a.zeroPage, 3}, {a.and, a.zeroPage, 3}, {a.rol, a.zeroPage, 5}, {a.xxx, a.zeroPage, 4}, {a.plp, a.implied, 4}, {a.andImm, a.immediate, 2}, {a.rolA, a.accumulator, 2}, {a.xxx, a.immediate, 4}, {a.bit, a.absolute, 4}, {a.and, a.absolute, 4}, {a.rol, a.absolute, 6}, {a.xxx, a.absolute, 4},
+		{a.jsr, a.absolute, 6}, {a.and, a.indexIndirect, 6}, {a.xxx, a.implied, 4}, {a.xxx, a.indexIndirect, 4}, {a.bit, a.zeroPage, 3}, {a.and, a.zeroPage, 3}, {a.rol, a.zeroPage, 5}, {a.xxx, a.zeroPage, 4}, {a.plp, a.implied, 4}, {a.and, a.immediate, 2}, {a.rolA, a.accumulator, 2}, {a.xxx, a.immediate, 4}, {a.bit, a.absolute, 4}, {a.and, a.absolute, 4}, {a.rol, a.absolute, 6}, {a.xxx, a.absolute, 4},
 		{a.bmi, a.relative, 2}, {a.and, a.indirectIndex, 5}, {a.xxx, a.implied, 4}, {a.xxx, a.indirectIndex, 4}, {a.xxx, a.zeroPageX, 4}, {a.and, a.zeroPageX, 4}, {a.rol, a.zeroPageX, 5}, {a.xxx, a.zeroPageX, 4}, {a.sec, a.implied, 2}, {a.and, a.absoluteY, 4}, {a.xxx, a.implied, 4}, {a.xxx, a.indirectIndex, 4}, {a.xxx, a.absoluteX, 4}, {a.and, a.absoluteX, 4}, {a.rol, a.absoluteX, 7}, {a.xxx, a.absoluteX, 4},
-		{a.rti, a.implied, 6}, {a.eor, a.indexIndirect, 6}, {a.xxx, a.implied, 4}, {a.xxx, a.indexIndirect, 4}, {a.xxx, a.zeroPage, 4}, {a.eor, a.zeroPage, 3}, {a.lsr, a.zeroPage, 5}, {a.xxx, a.zeroPage, 4}, {a.pha, a.implied, 3}, {a.eorImm, a.immediate, 2}, {a.lsrA, a.accumulator, 2}, {a.xxx, a.immediate, 4}, {a.jmp, a.absolute, 3}, {a.eor, a.absolute, 4}, {a.lsr, a.absolute, 6}, {a.xxx, a.absolute, 4},
+		{a.rti, a.implied, 6}, {a.eor, a.indexIndirect, 6}, {a.xxx, a.implied, 4}, {a.xxx, a.indexIndirect, 4}, {a.xxx, a.zeroPage, 4}, {a.eor, a.zeroPage, 3}, {a.lsr, a.zeroPage, 5}, {a.xxx, a.zeroPage, 4}, {a.pha, a.implied, 3}, {a.eor, a.immediate, 2}, {a.lsrA, a.accumulator, 2}, {a.xxx, a.immediate, 4}, {a.jmp, a.absolute, 3}, {a.eor, a.absolute, 4}, {a.lsr, a.absolute, 6}, {a.xxx, a.absolute, 4},
 		{a.bvc, a.relative, 2}, {a.eor, a.indirectIndex, 5}, {a.xxx, a.implied, 4}, {a.xxx, a.indirectIndex, 4}, {a.xxx, a.zeroPageX, 4}, {a.eor, a.zeroPageX, 4}, {a.lsr, a.zeroPageX, 6}, {a.xxx, a.zeroPageX, 4}, {a.cli, a.implied, 2}, {a.eor, a.absoluteY, 4}, {a.xxx, a.implied, 4}, {a.xxx, a.indirectIndex, 4}, {a.xxx, a.absoluteX, 4}, {a.eor, a.absoluteX, 4}, {a.lsr, a.absoluteX, 7}, {a.xxx, a.absoluteX, 4},
-		{a.rts, a.implied, 6}, {a.adc, a.indexIndirect, 6}, {a.xxx, a.implied, 4}, {a.xxx, a.indexIndirect, 4}, {a.xxx, a.zeroPage, 4}, {a.adc, a.zeroPage, 3}, {a.ror, a.zeroPage, 5}, {a.xxx, a.zeroPage, 4}, {a.pla, a.implied, 4}, {a.adcImm, a.immediate, 2}, {a.rorA, a.accumulator, 2}, {a.xxx, a.immediate, 4}, {a.jmp, a.indirect, 5}, {a.adc, a.absolute, 4}, {a.ror, a.absolute, 6}, {a.xxx, a.absolute, 4},
+		{a.rts, a.implied, 6}, {a.adc, a.indexIndirect, 6}, {a.xxx, a.implied, 4}, {a.xxx, a.indexIndirect, 4}, {a.xxx, a.zeroPage, 4}, {a.adc, a.zeroPage, 3}, {a.ror, a.zeroPage, 5}, {a.xxx, a.zeroPage, 4}, {a.pla, a.implied, 4}, {a.adc, a.immediate, 2}, {a.rorA, a.accumulator, 2}, {a.xxx, a.immediate, 4}, {a.jmp, a.indirect, 5}, {a.adc, a.absolute, 4}, {a.ror, a.absolute, 6}, {a.xxx, a.absolute, 4},
 		{a.bvs, a.relative, 2}, {a.adc, a.indirectIndex, 5}, {a.xxx, a.implied, 4}, {a.xxx, a.indirectIndex, 4}, {a.xxx, a.zeroPageX, 4}, {a.adc, a.zeroPageX, 4}, {a.ror, a.zeroPageX, 6}, {a.xxx, a.zeroPageX, 4}, {a.sei, a.implied, 2}, {a.adc, a.absoluteY, 4}, {a.xxx, a.implied, 4}, {a.xxx, a.indexIndirect, 4}, {a.xxx, a.absoluteX, 4}, {a.adc, a.absoluteX, 4}, {a.ror, a.absoluteX, 7}, {a.xxx, a.absoluteX, 4},
 		{a.xxx, a.immediate, 4}, {a.sta, a.indexIndirect, 6}, {a.xxx, a.immediate, 4}, {a.xxx, a.indexIndirect, 4}, {a.sty, a.zeroPage, 3}, {a.sta, a.zeroPage, 3}, {a.stx, a.zeroPage, 3}, {a.xxx, a.zeroPage, 4}, {a.dey, a.implied, 2}, {a.xxx, a.immediate, 4}, {a.txa, a.implied, 2}, {a.xxx, a.immediate, 4}, {a.sty, a.absolute, 4}, {a.sta, a.absolute, 4}, {a.stx, a.absolute, 4}, {a.xxx, a.absolute, 4},
 		{a.bcc, a.relative, 2}, {a.sta, a.indirectIndex, 6}, {a.xxx, a.implied, 4}, {a.xxx, a.indirectIndex, 4}, {a.sty, a.zeroPageX, 4}, {a.sta, a.zeroPageX, 4}, {a.stx, a.zeroPageY, 4}, {a.xxx, a.zeroPageY, 4}, {a.tya, a.implied, 2}, {a.sta, a.absoluteY, 5}, {a.txs, a.implied, 2}, {a.xxx, a.absoluteY, 4}, {a.xxx, a.absoluteX, 4}, {a.sta, a.absoluteX, 5}, {a.xxx, a.absoluteY, 4}, {a.xxx, a.absoluteY, 4},
-		{a.ldyImm, a.immediate, 2}, {a.lda, a.indexIndirect, 6}, {a.ldxImm, a.immediate, 2}, {a.xxx, a.indexIndirect, 4}, {a.ldy, a.zeroPage, 3}, {a.lda, a.zeroPage, 3}, {a.ldx, a.zeroPage, 3}, {a.xxx, a.zeroPage, 4}, {a.tay, a.implied, 2}, {a.ldaImm, a.immediate, 2}, {a.tax, a.implied, 2}, {a.xxx, a.immediate, 4}, {a.ldy, a.absolute, 4}, {a.lda, a.absolute, 4}, {a.ldx, a.absolute, 4}, {a.xxx, a.absolute, 4},
+		{a.ldy, a.immediate, 2}, {a.lda, a.indexIndirect, 6}, {a.ldx, a.immediate, 2}, {a.xxx, a.indexIndirect, 4}, {a.ldy, a.zeroPage, 3}, {a.lda, a.zeroPage, 3}, {a.ldx, a.zeroPage, 3}, {a.xxx, a.zeroPage, 4}, {a.tay, a.implied, 2}, {a.lda, a.immediate, 2}, {a.tax, a.implied, 2}, {a.xxx, a.immediate, 4}, {a.ldy, a.absolute, 4}, {a.lda, a.absolute, 4}, {a.ldx, a.absolute, 4}, {a.xxx, a.absolute, 4},
 		{a.bcs, a.relative, 2}, {a.lda, a.indirectIndex, 5}, {a.xxx, a.implied, 4}, {a.xxx, a.indirectIndex, 4}, {a.ldy, a.zeroPageX, 4}, {a.lda, a.zeroPageX, 4}, {a.ldx, a.zeroPageY, 4}, {a.xxx, a.zeroPageY, 4}, {a.clv, a.implied, 2}, {a.lda, a.absoluteY, 4}, {a.tsx, a.implied, 2}, {a.xxx, a.absoluteY, 4}, {a.ldy, a.absoluteX, 4}, {a.lda, a.absoluteX, 4}, {a.ldx, a.absoluteY, 4}, {a.xxx, a.absoluteY, 4},
-		{a.cpyImm, a.immediate, 2}, {a.cmp, a.indexIndirect, 6}, {a.xxx, a.immediate, 4}, {a.xxx, a.indexIndirect, 4}, {a.cpy, a.zeroPage, 3}, {a.cmp, a.zeroPage, 3}, {a.dec, a.zeroPage, 5}, {a.xxx, a.zeroPage, 4}, {a.iny, a.implied, 2}, {a.cmpImm, a.immediate, 2}, {a.dex, a.implied, 2}, {a.xxx, a.immediate, 4}, {a.cpy, a.absolute, 4}, {a.cmp, a.absolute, 4}, {a.dec, a.absolute, 6}, {a.xxx, a.absolute, 4},
+		{a.cpy, a.immediate, 2}, {a.cmp, a.indexIndirect, 6}, {a.xxx, a.immediate, 4}, {a.xxx, a.indexIndirect, 4}, {a.cpy, a.zeroPage, 3}, {a.cmp, a.zeroPage, 3}, {a.dec, a.zeroPage, 5}, {a.xxx, a.zeroPage, 4}, {a.iny, a.implied, 2}, {a.cmp, a.immediate, 2}, {a.dex, a.implied, 2}, {a.xxx, a.immediate, 4}, {a.cpy, a.absolute, 4}, {a.cmp, a.absolute, 4}, {a.dec, a.absolute, 6}, {a.xxx, a.absolute, 4},
 		{a.bne, a.relative, 2}, {a.cmp, a.indirectIndex, 5}, {a.xxx, a.implied, 4}, {a.xxx, a.indirectIndex, 4}, {a.xxx, a.zeroPageX, 4}, {a.cmp, a.zeroPageX, 4}, {a.dec, a.zeroPageX, 6}, {a.xxx, a.zeroPageX, 4}, {a.cld, a.implied, 2}, {a.cmp, a.absoluteY, 4}, {a.xxx, a.implied, 4}, {a.xxx, a.absoluteY, 4}, {a.xxx, a.absoluteX, 4}, {a.cmp, a.absoluteX, 4}, {a.dec, a.absoluteX, 7}, {a.xxx, a.absoluteX, 4},
-		{a.cpxImm, a.immediate, 2}, {a.sbc, a.indexIndirect, 6}, {a.xxx, a.immediate, 4}, {a.xxx, a.indexIndirect, 4}, {a.cpx, a.zeroPage, 3}, {a.sbc, a.zeroPage, 3}, {a.inc, a.zeroPage, 5}, {a.xxx, a.zeroPage, 4}, {a.inx, a.implied, 2}, {a.sbcImm, a.immediate, 2}, {a.nop, a.implied, 2}, {a.xxx, a.immediate, 4}, {a.cpx, a.absolute, 4}, {a.sbc, a.absolute, 4}, {a.inc, a.absolute, 6}, {a.xxx, a.absolute, 4},
+		{a.cpx, a.immediate, 2}, {a.sbc, a.indexIndirect, 6}, {a.xxx, a.immediate, 4}, {a.xxx, a.indexIndirect, 4}, {a.cpx, a.zeroPage, 3}, {a.sbc, a.zeroPage, 3}, {a.inc, a.zeroPage, 5}, {a.xxx, a.zeroPage, 4}, {a.inx, a.implied, 2}, {a.sbc, a.immediate, 2}, {a.nop, a.implied, 2}, {a.xxx, a.immediate, 4}, {a.cpx, a.absolute, 4}, {a.sbc, a.absolute, 4}, {a.inc, a.absolute, 6}, {a.xxx, a.absolute, 4},
 		{a.beq, a.relative, 2}, {a.sbc, a.indirectIndex, 5}, {a.xxx, a.implied, 4}, {a.xxx, a.indirectIndex, 4}, {a.xxx, a.zeroPageX, 4}, {a.sbc, a.zeroPageX, 4}, {a.inc, a.zeroPageX, 6}, {a.xxx, a.zeroPageX, 4}, {a.sed, a.implied, 2}, {a.sbc, a.absoluteY, 4}, {a.xxx, a.implied, 4}, {a.xxx, a.absoluteY, 4}, {a.xxx, a.absoluteX, 4}, {a.sbc, a.absoluteX, 4}, {a.inc, a.absoluteX, 7}, {a.xxx, a.absoluteX, 4},
 	}
 }
@@ -113,21 +113,21 @@ func (cpu *CPU) implied() bool {
 // add x to immediate zero page address then read the address stored at that location in memory
 func (cpu *CPU) indexIndirect() bool {
 	operandAddr := cpu.Bus.GetByte(cpu.PC)
-	cpu.Operand = cpu.Get2Bytes(uint16(operandAddr + cpu.X))
+	cpu.OperandAddr = cpu.Get2Bytes(uint16(operandAddr + cpu.X))
 	cpu.PC++
 	return false
 }
 
 // operand is the byte after the instruction byte (zero page address)
 func (cpu *CPU) zeroPage() bool {
-	cpu.Operand = uint16(cpu.Bus.GetByte(cpu.PC))
+	cpu.OperandAddr = uint16(cpu.Bus.GetByte(cpu.PC))
 	cpu.PC++
 	return false
 }
 
 // operand is the byte after the instruction byte
 func (cpu *CPU) immediate() bool {
-	cpu.Operand = uint16(cpu.Bus.GetByte(cpu.PC))
+	cpu.OperandAddr = cpu.PC
 	cpu.PC++
 	return false
 }
@@ -140,7 +140,7 @@ func (cpu *CPU) accumulator() bool {
 
 // operand is two bytes following instruction byte
 func (cpu *CPU) absolute() bool {
-	cpu.Operand = cpu.Get2Bytes(cpu.PC) //gets the 2 byte address operand
+	cpu.OperandAddr = cpu.Get2Bytes(cpu.PC) //gets the 2 byte address operand
 	cpu.PC += 2
 	return false
 }
@@ -151,9 +151,9 @@ func (cpu *CPU) relative() bool {
 	cpu.PC++
 	isNeg := offset < 0
 	if isNeg {
-		cpu.Operand = cpu.PC - uint16(-1*offset)
+		cpu.OperandAddr = cpu.PC - uint16(-1*offset)
 	} else {
-		cpu.Operand = cpu.PC + uint16(offset)
+		cpu.OperandAddr = cpu.PC + uint16(offset)
 	}
 	return false
 }
@@ -164,21 +164,21 @@ func (cpu *CPU) relative() bool {
 func (cpu *CPU) indirectIndex() bool {
 	indirectAddr := cpu.Bus.GetByte(cpu.PC)
 	absAddr := cpu.Get2Bytes(uint16(indirectAddr))
-	cpu.Operand = absAddr + uint16(cpu.Y)
+	cpu.OperandAddr = absAddr + uint16(cpu.Y)
 	cpu.PC++
 	return (absAddr&0x00FF)+uint16(cpu.Y) > 0xFF // return true if there was a carry
 }
 
 // operand becomes immediate 1 byte value + x
 func (cpu *CPU) zeroPageX() bool {
-	cpu.Operand = uint16(cpu.X + cpu.Bus.GetByte(cpu.PC)) //since both operands are uint8 it will drop the carry
+	cpu.OperandAddr = uint16(cpu.X + cpu.Bus.GetByte(cpu.PC)) //since both operands are uint8 it will drop the carry
 	cpu.PC++
 	return false
 }
 
 // operand becomes immediate 1 byte value + Y
 func (cpu *CPU) zeroPageY() bool {
-	cpu.Operand = uint16(cpu.Y + cpu.Bus.GetByte(cpu.PC)) //since both oeprands are uint8 it will drop the carry
+	cpu.OperandAddr = uint16(cpu.Y + cpu.Bus.GetByte(cpu.PC)) //since both oeprands are uint8 it will drop the carry
 	cpu.PC++
 	return false
 }
@@ -187,7 +187,7 @@ func (cpu *CPU) zeroPageY() bool {
 // can take an extra cycle if the memory read crosses a page boundary
 func (cpu *CPU) absoluteX() bool {
 	absAddr := cpu.Get2Bytes(cpu.PC)
-	cpu.Operand = absAddr + uint16(cpu.X)
+	cpu.OperandAddr = absAddr + uint16(cpu.X)
 	cpu.PC += 2
 	return (absAddr&0x00FF)+uint16(cpu.X) > 0xFF // return true if there was a carry
 }
@@ -196,7 +196,7 @@ func (cpu *CPU) absoluteX() bool {
 // can take an extra cycle if the memory read crosses a page boundary
 func (cpu *CPU) absoluteY() bool {
 	absAddr := cpu.Get2Bytes(cpu.PC)
-	cpu.Operand = absAddr + uint16(cpu.Y)
+	cpu.OperandAddr = absAddr + uint16(cpu.Y)
 	cpu.PC += 2
 	return (absAddr&0x00FF)+uint16(cpu.Y) > 0xFF // return true if there was a carry
 
@@ -215,7 +215,7 @@ func (cpu *CPU) indirect() bool {
 	if lowByteAddr&0x00FF == 0x00FF { //if a page boundary needs to be crossed when incrementing
 		highByteAddr = lowByteAddr & 0xFF00 //simulate the low byte of the target addr overflowing and the upper byte not adding the carry
 	}
-	cpu.Operand = uint16(cpu.Bus.GetByte(lowByteAddr)) | (uint16(cpu.Bus.GetByte(highByteAddr)) << 8) //combine low and high byte
+	cpu.OperandAddr = uint16(cpu.Bus.GetByte(lowByteAddr)) | (uint16(cpu.Bus.GetByte(highByteAddr)) << 8) //combine low and high byte
 	cpu.PC += 2
 	return false
 }
@@ -228,11 +228,9 @@ func (cpu *CPU) xxx() bool { //invalid opcode will treat as NOP for now
 	return false
 }
 
-// core behavior of adc but the value is provided instead of read from the operand or memory
-// this is so adc simply passes the value read from memory to the value parameter
-// and adcImm (when it is using immediate addressing) just passes the operand directly
-// this is to prevent writing the same code twice or relying on a global isImmediate flag that could be error prone
-func (cpu *CPU) adcProvidedVal(value uint8) bool {
+// add with carry
+// since SBC utilizes this functionality, it is in a function that takes a literal value
+func (cpu *CPU) adcValue(value uint8) bool {
 	oldAc := cpu.AC
 	cpu.AC += value //add accumulator and memory
 	//add the carry flag
@@ -252,40 +250,23 @@ func (cpu *CPU) adcProvidedVal(value uint8) bool {
 // NOTE: Ignoring Decimal Mode since the NES doesn't support it
 func (cpu *CPU) adc() bool {
 	//call the core function with the memory value
-	return cpu.adcProvidedVal(cpu.Bus.GetByte(cpu.Operand))
-}
-
-// calls the adcProvidedval, passing the immediate value (operand)
-func (cpu *CPU) adcImm() bool {
-	return cpu.adcProvidedVal(uint8(cpu.Operand))
+	return cpu.adcValue(cpu.Bus.GetByte(cpu.OperandAddr))
 
 }
 
 // sets accumulator to accumulator & value
-// core functionality of AND
-// and() will pass the byte from memory
-// andImm() will pass the operand
-func (cpu *CPU) andProvidedVal(value uint8) bool {
-	cpu.AC = cpu.AC & value
+func (cpu *CPU) and() bool {
+	cpu.AC = cpu.AC & cpu.Bus.GetByte(cpu.OperandAddr)
 	cpu.setNZFlags(cpu.AC)
 	return false
-
-}
-func (cpu *CPU) and() bool {
-	return cpu.andProvidedVal(cpu.Bus.GetByte(cpu.Operand))
-
-}
-func (cpu *CPU) andImm() bool {
-	return cpu.andProvidedVal(uint8(cpu.Operand))
-
 }
 
 // shift left one bit (memory)
 func (cpu *CPU) asl() bool {
-	value := cpu.Bus.GetByte(cpu.Operand)
+	value := cpu.Bus.GetByte(cpu.OperandAddr)
 	cpu.setFlag(CF, value&0x80 > 0) //set CF to bit 7 since it is the bit being shifted out
 	value <<= 1
-	cpu.Bus.SetByte(cpu.Operand, value)
+	cpu.Bus.SetByte(cpu.OperandAddr, value)
 	cpu.setNZFlags(value)
 	return false
 
@@ -295,7 +276,7 @@ func (cpu *CPU) asl() bool {
 func (cpu *CPU) aslA() bool {
 	cpu.setFlag(CF, cpu.AC&0x80 > 0) //set CF to bit 7 since it is the bit being shifted out
 	cpu.AC <<= 1
-	cpu.Bus.SetByte(cpu.Operand, cpu.AC)
+	cpu.Bus.SetByte(cpu.OperandAddr, cpu.AC)
 	cpu.setNZFlags(cpu.AC)
 	return false
 
@@ -304,11 +285,11 @@ func (cpu *CPU) aslA() bool {
 // branches if condition is true
 func (cpu *CPU) branch(condition bool) bool {
 	if condition {
-		cpu.RemCycles++                        //add 1 cycle if branch on same page, otherwise add 2. In either case we increment cycles at least once
-		if cpu.PC&0xFF00 != cpu.Operand&0xFF { //if page boundary is crossed add the second additional cycle
+		cpu.RemCycles++                            //add 1 cycle if branch on same page, otherwise add 2. In either case we increment cycles at least once
+		if cpu.PC&0xFF00 != cpu.OperandAddr&0xFF { //if page boundary is crossed add the second additional cycle
 			cpu.RemCycles++
 		}
-		cpu.PC = cpu.Operand //branch PC
+		cpu.PC = cpu.OperandAddr //branch PC
 	}
 	return false
 
@@ -416,38 +397,25 @@ func (cpu *CPU) compareFunc(register uint8, value uint8) bool {
 
 // compare memory to accumulator
 func (cpu *CPU) cmp() bool {
-	return cpu.compareFunc(cpu.AC, cpu.Bus.GetByte(cpu.Operand))
-}
-
-// compare immediate value to accumulator
-func (cpu *CPU) cmpImm() bool {
-	return cpu.compareFunc(cpu.AC, uint8(cpu.Operand))
+	return cpu.compareFunc(cpu.AC, cpu.Bus.GetByte(cpu.OperandAddr))
 }
 
 // compare memory with X
 func (cpu *CPU) cpx() bool {
-	return cpu.compareFunc(cpu.X, cpu.Bus.GetByte(cpu.Operand))
-}
-
-// compare immediate with X
-func (cpu *CPU) cpxImm() bool {
-	return cpu.compareFunc(cpu.X, uint8(cpu.Operand))
+	return cpu.compareFunc(cpu.X, cpu.Bus.GetByte(cpu.OperandAddr))
 }
 
 // compare memory to Y
 func (cpu *CPU) cpy() bool {
-	return cpu.compareFunc(cpu.Y, cpu.Bus.GetByte(cpu.Operand))
-}
-func (cpu *CPU) cpyImm() bool {
-	return cpu.compareFunc(cpu.Y, uint8(cpu.Operand))
+	return cpu.compareFunc(cpu.Y, cpu.Bus.GetByte(cpu.OperandAddr))
 }
 
 // decrement memory by 1
 func (cpu *CPU) dec() bool {
-	value := cpu.Bus.GetByte(cpu.Operand)
+	value := cpu.Bus.GetByte(cpu.OperandAddr)
 	value--
 	cpu.setNZFlags(value)
-	cpu.Bus.SetByte(cpu.Operand, value)
+	cpu.Bus.SetByte(cpu.OperandAddr, value)
 	return false
 
 }
@@ -468,31 +436,19 @@ func (cpu *CPU) dey() bool {
 
 }
 
-// core functionality of eor
-// eor() will pass byte from memory
-// eorImm() will pass immediate value
-func (cpu *CPU) eorProvidedValue(value uint8) bool {
-	cpu.AC = cpu.AC ^ value
+// eor with value from memory
+func (cpu *CPU) eor() bool {
+	cpu.AC ^= cpu.Bus.GetByte(cpu.OperandAddr)
 	cpu.setNZFlags(cpu.AC)
 	return false
 }
 
-// call eor with value from memory
-func (cpu *CPU) eor() bool {
-	return cpu.eorProvidedValue(cpu.Bus.GetByte(cpu.Operand))
-}
-
-// call eor with immediate value
-func (cpu *CPU) eorImm() bool {
-	return cpu.eorProvidedValue(uint8(cpu.Operand))
-}
-
 // increment memory by 1
 func (cpu *CPU) inc() bool {
-	value := cpu.Bus.GetByte(cpu.Operand)
+	value := cpu.Bus.GetByte(cpu.OperandAddr)
 	value++
 	cpu.setNZFlags(value)
-	cpu.Bus.SetByte(cpu.Operand, value)
+	cpu.Bus.SetByte(cpu.OperandAddr, value)
 	return false
 
 }
@@ -515,7 +471,7 @@ func (cpu *CPU) iny() bool {
 
 // jump
 func (cpu *CPU) jmp() bool {
-	cpu.PC = cpu.Operand
+	cpu.PC = cpu.OperandAddr
 	return false
 
 }
@@ -525,61 +481,40 @@ func (cpu *CPU) jsr() bool {
 	cpu.pushStack(uint8(cpu.PC >> 8)) //push high byte
 	cpu.pushStack(uint8(cpu.PC) - 1)  //push low byte
 	//must subtract 1 because in the 6502 the pc isn't incremented by the time we push the lower byte
-	cpu.PC = cpu.Operand
+	cpu.PC = cpu.OperandAddr
 	return false
 
 }
 
 // load memory into Accumulator
 func (cpu *CPU) lda() bool {
-	cpu.AC = cpu.Bus.GetByte(cpu.Operand)
-	cpu.setNZFlags(cpu.AC)
-	return true
-}
-
-// load immediate value into Accumulator
-func (cpu *CPU) ldaImm() bool {
-	cpu.AC = uint8(cpu.Operand)
+	cpu.AC = cpu.Bus.GetByte(cpu.OperandAddr)
 	cpu.setNZFlags(cpu.AC)
 	return true
 }
 
 // load memory into register X
 func (cpu *CPU) ldx() bool {
-	cpu.X = cpu.Bus.GetByte(cpu.Operand)
-	cpu.setNZFlags(cpu.X)
-	return true
-}
-
-// load immediate value into register X
-func (cpu *CPU) ldxImm() bool {
-	cpu.X = uint8(cpu.Operand)
+	cpu.X = cpu.Bus.GetByte(cpu.OperandAddr)
 	cpu.setNZFlags(cpu.X)
 	return true
 }
 
 // load memory into register Y
 func (cpu *CPU) ldy() bool {
-	cpu.Y = cpu.Bus.GetByte(cpu.Operand)
-	cpu.setNZFlags(cpu.Y)
-	return true
-}
-
-// load immediate value into register Y
-func (cpu *CPU) ldyImm() bool {
-	cpu.Y = uint8(cpu.Operand)
+	cpu.Y = cpu.Bus.GetByte(cpu.OperandAddr)
 	cpu.setNZFlags(cpu.Y)
 	return true
 }
 
 // logical shift right with memory
 func (cpu *CPU) lsr() bool {
-	value := cpu.Bus.GetByte(cpu.Operand)
+	value := cpu.Bus.GetByte(cpu.OperandAddr)
 	cpu.setFlag(CF, value&0x1 > 0)
 	newValue := value >> 1
 	cpu.setFlag(NF, false)
 	cpu.setFlag(ZF, newValue == 0)
-	cpu.Bus.SetByte(cpu.Operand, newValue)
+	cpu.Bus.SetByte(cpu.OperandAddr, newValue)
 	return false
 
 }
@@ -597,20 +532,12 @@ func (cpu *CPU) nop() bool {
 	return false
 
 }
-func (cpu *CPU) oraProvidedVal(value uint8) bool {
-	cpu.AC |= value
-	cpu.setNZFlags(cpu.AC)
-	return false
-}
 
 // ora with value in memory
 func (cpu *CPU) ora() bool {
-	return cpu.oraProvidedVal(cpu.Bus.GetByte(cpu.Operand))
-}
-
-// ora with immediate value
-func (cpu *CPU) oraImm() bool {
-	return cpu.oraProvidedVal(uint8(cpu.Operand))
+	cpu.AC |= cpu.Bus.GetByte(cpu.OperandAddr)
+	cpu.setNZFlags(cpu.AC)
+	return false
 }
 
 // push accumulator to stack
@@ -644,11 +571,11 @@ func (cpu *CPU) plp() bool {
 
 // rotate one bit left memory
 func (cpu *CPU) rol() bool {
-	value := cpu.Bus.GetByte(cpu.Operand)
+	value := cpu.Bus.GetByte(cpu.OperandAddr)
 	cpu.setFlag(CF, value&0x80 > 0) //store bit being shifted out into CF
 	value <<= 1
 	setBit(&value, 0, cpu.GetFlag(CF)) //perform the rotate
-	cpu.Bus.SetByte(cpu.Operand, value)
+	cpu.Bus.SetByte(cpu.OperandAddr, value)
 	cpu.setNZFlags(value)
 	return false
 }
@@ -666,11 +593,11 @@ func (cpu *CPU) rolA() bool {
 
 // rotate one bit right memory
 func (cpu *CPU) ror() bool {
-	value := cpu.Bus.GetByte(cpu.Operand)
+	value := cpu.Bus.GetByte(cpu.OperandAddr)
 	cpu.setFlag(CF, value&0x1 > 0) //store bit being shifted out into CF
 	value >>= 1
 	setBit(&value, 7, cpu.GetFlag(CF)) //perform the rotate
-	cpu.Bus.SetByte(cpu.Operand, value)
+	cpu.Bus.SetByte(cpu.OperandAddr, value)
 	cpu.setNZFlags(value)
 	return false
 }
@@ -707,19 +634,8 @@ func (cpu *CPU) rts() bool {
 // This is because sbc uses the same logic as ADC so it achieves ^b+1 when the carry is set
 // since ADC adds the carry value
 // This means to get proper subtraction, you must first set the carry flag using SEC
-func (cpu *CPU) sbcProvidedVal(value uint8) bool {
-	return cpu.adcProvidedVal(^value)
-}
-
-// sbc when value is from memory
 func (cpu *CPU) sbc() bool {
-	return cpu.sbcProvidedVal(cpu.Bus.GetByte(cpu.Operand))
-
-}
-
-// sbc when value is immediate
-func (cpu *CPU) sbcImm() bool {
-	return cpu.sbcProvidedVal(uint8(cpu.Operand))
+	return cpu.adcValue(cpu.Bus.GetByte(cpu.OperandAddr))
 
 }
 
@@ -747,21 +663,21 @@ func (cpu *CPU) sei() bool {
 
 // store accumulator in memory
 func (cpu *CPU) sta() bool {
-	cpu.Bus.SetByte(cpu.Operand, cpu.AC)
+	cpu.Bus.SetByte(cpu.OperandAddr, cpu.AC)
 	return false
 
 }
 
 // store index X in memory
 func (cpu *CPU) stx() bool {
-	cpu.Bus.SetByte(cpu.Operand, cpu.X)
+	cpu.Bus.SetByte(cpu.OperandAddr, cpu.X)
 	return false
 
 }
 
 // store index Y in memory
 func (cpu *CPU) sty() bool {
-	cpu.Bus.SetByte(cpu.Operand, cpu.Y)
+	cpu.Bus.SetByte(cpu.OperandAddr, cpu.Y)
 	return false
 
 }

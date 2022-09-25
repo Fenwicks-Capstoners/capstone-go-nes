@@ -247,7 +247,7 @@ func printCmd(args []string) {
 	case "BF":
 		value = boolToUint8(cpu.GetFlag(nes.BF))
 	case "OP":
-		fmt.Printf("0x%04X\n", cpu.Operand)
+		fmt.Printf("0x%04X\n", cpu.OperandAddr)
 		return
 	default:
 		fmt.Println("Can't print " + args[1])
