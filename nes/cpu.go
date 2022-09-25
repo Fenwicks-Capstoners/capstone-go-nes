@@ -136,13 +136,13 @@ func (cpu *CPU) absolute() bool {
 // operand is the PC + single byte specified after instruction (signed)
 func (cpu *CPU) relative() bool {
 	offset := int8(cpu.Bus.GetByte(cpu.PC))
+	cpu.PC++
 	isNeg := offset < 0
 	if isNeg {
 		cpu.Operand = cpu.PC - uint16(-1*offset)
 	} else {
 		cpu.Operand = cpu.PC + uint16(offset)
 	}
-	cpu.PC++
 	return false
 }
 
@@ -278,44 +278,79 @@ func (cpu *CPU) aslA() bool {
 	return false
 
 }
+
+// branches if condition is true
+func (cpu *CPU) branch(condition bool) bool {
+	if condition {
+		cpu.RemCycles++                        //add 1 cycle if branch on same page, otherwise add 2. In either case we increment cycles at least once
+		if cpu.PC&0xFF00 != cpu.Operand&0xFF { //if page boundary is crossed add the second additional cycle
+			cpu.RemCycles++
+		}
+		cpu.PC = cpu.Operand //branch PC
+	}
+	return false
+
+}
+
+// branch on carry clear
+// CF = False
 func (cpu *CPU) bcc() bool {
-	return false
-
+	return cpu.branch(!cpu.GetFlag(CF))
 }
+
+// branch on carry set
+// CF = True
 func (cpu *CPU) bcs() bool {
-	return false
-
+	return cpu.branch(cpu.GetFlag(CF))
 }
+
+// branch on result zero
+// ZF = true
 func (cpu *CPU) beq() bool {
-	return false
+	return cpu.branch(cpu.GetFlag(ZF))
 
 }
 func (cpu *CPU) bit() bool {
 	return false
 
 }
+
+// branch on result minus
+// NF = true
 func (cpu *CPU) bmi() bool {
-	return false
+	return cpu.branch(cpu.GetFlag(NF))
 
 }
+
+// branch on result not zero
+// ZF = False
 func (cpu *CPU) bne() bool {
-	return false
+	return cpu.branch(!cpu.GetFlag(ZF))
 
 }
+
+// branch on result plus
+// NF = False
 func (cpu *CPU) bpl() bool {
-	return false
+	return cpu.branch(!cpu.GetFlag(NF))
 
 }
 func (cpu *CPU) brk() bool {
 	return false
 
 }
+
+// branch on overflow clear
+// OF = false
 func (cpu *CPU) bvc() bool {
-	return false
+	return cpu.branch(!cpu.GetFlag(OF))
 
 }
+
+// branch on overflow set
+// OF = true
 func (cpu *CPU) bvs() bool {
-	return false
+	return cpu.branch(cpu.GetFlag(OF))
 
 }
 
