@@ -90,6 +90,18 @@ func setBit(number *uint8, bit uint8, value bool) {
 	}
 }
 
+// pushes to stack
+func (cpu *CPU) pushStack(val uint8) {
+	cpu.Bus.SetByte(0x100+uint16(cpu.SP), val)
+	cpu.SP--
+}
+
+// pops from the stack
+func (cpu *CPU) popStack() uint8 {
+	cpu.SP++
+	return cpu.Bus.GetByte(0x100 + uint16(cpu.SP))
+}
+
 /*
 Addressing Modes
 */
@@ -192,8 +204,18 @@ func (cpu *CPU) absoluteY() bool {
 
 // only used with JMP
 // operand is address stored in memory at location specified by 16 bit immediate value
+// there is a bug where of a page boundary is crossed when reading the address
+// JMP ($C0FF) should fetch the low byte from 0xC0FF and the high byte from 0xC100
+// however, instead of this behavior, the low byte is incremented (overflowing and becoming 00) and
+// the high byte isn't also incremented so the high byte would be read from 0xC000
+// https://everything2.com/title/6502+indirect+JMP+bug
 func (cpu *CPU) indirect() bool {
-	cpu.Operand = cpu.Get2Bytes(cpu.Get2Bytes(cpu.PC))
+	lowByteAddr := cpu.Get2Bytes(cpu.PC)
+	highByteAddr := lowByteAddr + 1   //increment for high byte address
+	if lowByteAddr&0x00FF == 0x00FF { //if a page boundary needs to be crossed when incrementing
+		highByteAddr = lowByteAddr & 0xFF00 //simulate the low byte of the target addr overflowing and the upper byte not adding the carry
+	}
+	cpu.Operand = uint16(cpu.Bus.GetByte(lowByteAddr)) | (uint16(cpu.Bus.GetByte(highByteAddr)) << 8) //combine low and high byte
 	cpu.PC += 2
 	return false
 }
@@ -482,17 +504,28 @@ func (cpu *CPU) inx() bool {
 	return false
 
 }
+
+// increment index y by 1
 func (cpu *CPU) iny() bool {
 	cpu.Y++
 	cpu.setNZFlags(cpu.Y)
 	return false
 
 }
+
+// jump
 func (cpu *CPU) jmp() bool {
+	cpu.PC = cpu.Operand
 	return false
 
 }
+
+// jump save return
 func (cpu *CPU) jsr() bool {
+	cpu.pushStack(uint8(cpu.PC >> 8)) //push high byte
+	cpu.pushStack(uint8(cpu.PC) - 1)  //push low byte
+	//must subtract 1 because in the 6502 the pc isn't incremented by the time we push the lower byte
+	cpu.PC = cpu.Operand
 	return false
 
 }
@@ -582,25 +615,21 @@ func (cpu *CPU) oraImm() bool {
 
 // push accumulator to stack
 func (cpu *CPU) pha() bool {
-	cpu.Bus.SetByte(0x100+uint16(cpu.SP), cpu.AC)
-	cpu.SP--
+	cpu.pushStack(cpu.AC)
 	return false
 
 }
 
 // push processor status to stack
 func (cpu *CPU) php() bool {
-	status := cpu.SR | 0b00110000 // sets BF and bit 5 to 1
-	cpu.Bus.SetByte(0x100+uint16(cpu.SP), status)
-	cpu.SP--
+	cpu.pushStack(cpu.SR | 0b00110000) //BRK and bit 5 are always 1 when not on the stack since they don't technically exist physically
 	return false
 
 }
 
 // pull accumulator from stack
 func (cpu *CPU) pla() bool {
-	cpu.SP++
-	cpu.AC = cpu.Bus.GetByte(0x100 + uint16(cpu.SP))
+	cpu.AC = cpu.popStack()
 	cpu.setNZFlags(cpu.AC)
 	return false
 
@@ -608,8 +637,7 @@ func (cpu *CPU) pla() bool {
 
 // pull processor status from stack
 func (cpu *CPU) plp() bool {
-	cpu.SP++
-	cpu.SR = cpu.Bus.GetByte(0x100+uint16(cpu.SP)) | 0b00010000 //BF always true when not on the stack
+	cpu.SR = cpu.popStack() | 0b00010000 //BF always true when not on the stack
 	return false
 
 }
@@ -658,9 +686,13 @@ func (cpu *CPU) rti() bool {
 	return false
 
 }
-func (cpu *CPU) rts() bool {
-	return false
 
+// return from subroutine
+func (cpu *CPU) rts() bool {
+	pcL := uint16(cpu.popStack())
+	pcH := uint16(cpu.popStack()) << 8
+	cpu.PC = (pcH | pcL) + 1 //must increment since JSR saves the lower byte before the pc is incremented
+	return false
 }
 
 // core functionality of sbc but uses a value parameter
