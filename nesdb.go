@@ -48,7 +48,7 @@ func loadBinary(path string, loadAddr uint16) bool {
 		fmt.Println("File exceeds 65KB")
 		return false
 	}
-
+	println("load", loadAddr)
 	copy(cpu.Bus.Memory[loadAddr:], buf)
 	// copy(cpu.Bus.Memory, buf)
 
@@ -244,6 +244,44 @@ func printCmd(args []string) {
 	fmt.Printf("%s:\t"+format+"\n", strings.ToUpper(args[1]), value)
 }
 
+// set command
+// set register, flag, or memory
+func setCmd(args []string) {
+	target := strings.ToLower(args[1])
+	value, err := getNumberArgument(args[3])
+	if err != nil {
+		fmt.Println("Invalid value")
+		return
+	}
+	switch target {
+	case "pc":
+		cpu.PC = value
+		return
+	case "x":
+		cpu.X = uint8(value)
+		return
+	case "y":
+		cpu.Y = uint8(value)
+		return
+	case "ac":
+		cpu.AC = uint8(value)
+		return
+	case "sr":
+		cpu.SR = uint8(value)
+		return
+	case "sp":
+		cpu.SP = uint8(value)
+		return
+
+	}
+	targetAddr, err := getNumberArgument(args[1])
+	if err != nil {
+		fmt.Println("Invalid target")
+		return
+	}
+	cpu.Bus.SetByte(targetAddr, uint8(value))
+}
+
 // uses disassembler to print the current instruction pointed to by the program counter
 func printCurrentInstr() {
 	instr, _ := nes.DiassembleInstruction(bus, cpu.PC)
@@ -254,6 +292,7 @@ func main() {
 
 	//command line flags
 	addrStrPtr := flag.String("load", "0x4020", "Starting address in memory to store ROM")
+	binaryPathStrPtr := flag.String("binary", "", "Path to binary to load")
 	flag.Parse()
 	loadAddr, err := getNumberArgument(*addrStrPtr)
 	if err != nil {
@@ -262,7 +301,7 @@ func main() {
 	}
 
 	//if the user didn't provide a binary file as a command line argument
-	if len(os.Args) == 1 {
+	if *binaryPathStrPtr == "" {
 		binaryLoaded := false
 		for !binaryLoaded {
 			fmt.Println("Enter path to binary:")
@@ -270,9 +309,9 @@ func main() {
 			fmt.Scanln(&path)
 			binaryLoaded = loadBinary(path, loadAddr)
 		}
-	} else if len(os.Args) == 2 {
-		if !loadBinary(os.Args[1], loadAddr) {
-			fmt.Println(os.Args[1] + " could not be loaded")
+	} else {
+		if !loadBinary(*binaryPathStrPtr, loadAddr) {
+			fmt.Println(*binaryPathStrPtr + " could not be loaded")
 			os.Exit(1)
 		}
 	}
@@ -313,6 +352,8 @@ func main() {
 			for i := 0; i < 1000; i++ {
 				cpu.Clock()
 			}
+		} else if tokens[0] == "set" {
+			setCmd(tokens)
 		} else {
 			fmt.Println("Invalid Command")
 		}
