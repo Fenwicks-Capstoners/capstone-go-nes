@@ -299,21 +299,15 @@ func main() {
 		fmt.Println("Invalid load address specified")
 		return
 	}
-
-	//if the user didn't provide a binary file as a command line argument
 	if *binaryPathStrPtr == "" {
-		binaryLoaded := false
-		for !binaryLoaded {
-			fmt.Println("Enter path to binary:")
-			var path string
-			fmt.Scanln(&path)
-			binaryLoaded = loadBinary(path, loadAddr)
-		}
-	} else {
-		if !loadBinary(*binaryPathStrPtr, loadAddr) {
-			fmt.Println(*binaryPathStrPtr + " could not be loaded")
-			os.Exit(1)
-		}
+		fmt.Println("Missing path to binary")
+		fmt.Println("Usage:\n--binary=<PATH_TO_BINARY> [--load=<address to load binary>]")
+		os.Exit(1)
+	}
+
+	if !loadBinary(*binaryPathStrPtr, loadAddr) {
+		fmt.Println(*binaryPathStrPtr + " could not be loaded")
+		os.Exit(1)
 	}
 
 	cpu.Reset()
