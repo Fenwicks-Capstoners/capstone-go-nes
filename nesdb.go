@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -68,48 +69,33 @@ func IsDigit(c byte) bool {
 	return c >= '0' && c <= '9'
 }
 
-// Returns the printf format specifier (or i for an instruction), the number of bytes to print (or instructions) or an error
+// Returns the printf format specifier (or i for an instruction), the number of bytes (or instructions) to print or an error
 func getOutputFormatAndSize(formatSpecifier string) (string, int, error) {
-	if len(formatSpecifier) == 1 {
-		return "%d", 1, nil
-	}
 	formatSpecifier = strings.ToLower(formatSpecifier)
-	if len(formatSpecifier) < 3 || formatSpecifier[1] != '/' {
+	formatPattern := regexp.MustCompile(`^(x|p)(/(\d*)(x|d|b|i)?)?$`)
+	matches := formatPattern.FindStringSubmatch(formatSpecifier)
+	if len(matches) == 0 {
 		return "", 0, fmt.Errorf("invalid format specifier")
 	}
-	numberAndFormat := formatSpecifier[2:]
-	numberCharacters := ""
-	var formatString string
-	var format byte = 'd'
-	for i, char := range []byte(numberAndFormat) {
-		if IsDigit(char) {
-			numberCharacters += string(char)
-		} else {
-			format = numberAndFormat[i]
-			break
-		}
-	}
-	switch format {
-	case 'x':
-		formatString = "%02X"
-	case 'b':
-		formatString = "%08b"
-	case 'd':
-		formatString = "%d"
-	case 'i':
-		formatString = "i"
-	default:
-		return "", 0, fmt.Errorf("invalid format. Only x, b, or d are valid")
+	format := "%d"
+	switch matches[4] {
+	case "x":
+		format = "%02X"
+	case "b":
+		format = "%08b"
+	case "i":
+		format = "i"
 	}
 	numBytes := 1
-	if len(numberCharacters) > 0 {
-		num, err := strconv.ParseInt(numberCharacters, 10, 0)
-		if err != nil || num < 1 {
+	if matches[3] != "" {
+		num, err := strconv.ParseInt(matches[3], 10, 32) //can't error since regex is using \d*
+		if err != nil {
 			return "", 0, fmt.Errorf("invalid number of bytes specified")
 		}
 		numBytes = int(num)
+
 	}
-	return formatString, numBytes, nil
+	return format, int(numBytes), nil
 }
 
 // Returns the uint16 specified by a string or an error
@@ -119,24 +105,23 @@ func getOutputFormatAndSize(formatSpecifier string) (string, int, error) {
 // 0b0001001000110100 - Binary
 func getNumberArgument(number string) (uint16, error) {
 	base := 10
-	trimmedNumber := number
-	if len(number) > 2 {
-		format := strings.ToLower(number[0:2])
-		if format == "0x" { //hex format
-			base = 16
-			trimmedNumber = number[2:]
-		} else if format == "0b" { //binary format
-			base = 2
-			trimmedNumber = number[2:]
-		} else if !IsDigit(number[0]) || !IsDigit(number[1]) { //not decimal (implied) format
-			return 0, fmt.Errorf("invalid number")
-		}
+	number = strings.ToLower(number)
+	numPattern := regexp.MustCompile(`(?i)^(?P<format>0x|0b)?(?P<number>[0-9a-f]+)$`)
+	matches := numPattern.FindStringSubmatch(number)
+	if len(matches) == 0 {
+		return 0, fmt.Errorf("invalid number specified")
 	}
-	parsed, err := strconv.ParseUint(trimmedNumber, base, 16)
+	switch matches[1] {
+	case "0x":
+		base = 16
+	case "0b":
+		base = 2
+	}
+	num, err := strconv.ParseUint(matches[2], base, 16)
 	if err != nil {
-		return 0, fmt.Errorf("invalid number: %s", number)
+		return 0, fmt.Errorf("invalid number specified")
 	}
-	return uint16(parsed), nil
+	return uint16(num), nil
 
 }
 
