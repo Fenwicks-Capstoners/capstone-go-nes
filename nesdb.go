@@ -17,6 +17,7 @@ package main
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -30,7 +31,7 @@ var bus = nes.CreateBus()
 var cpu = nes.CreateCPU(bus)
 
 // loads binary specified by path into memory
-func loadBinary(path string) bool {
+func loadBinary(path string, loadAddr uint16) bool {
 
 	file, error := os.Open(path)
 	if error != nil {
@@ -47,7 +48,9 @@ func loadBinary(path string) bool {
 		return false
 	}
 
-	copy(cpu.Bus.Memory[0x4020:], buf)
+	copy(cpu.Bus.Memory[loadAddr:], buf)
+	// copy(cpu.Bus.Memory, buf)
+
 	return true
 }
 
@@ -264,6 +267,15 @@ func printCurrentInstr() {
 
 func main() {
 
+	//command line flags
+	addrStrPtr := flag.String("load", "0x4020", "Starting address in memory to store ROM")
+	flag.Parse()
+	loadAddr, err := getNumberArgument(*addrStrPtr)
+	if err != nil {
+		fmt.Println("Invalid load address specified")
+		return
+	}
+
 	//if the user didn't provide a binary file as a command line argument
 	if len(os.Args) == 1 {
 		binaryLoaded := false
@@ -271,16 +283,17 @@ func main() {
 			fmt.Println("Enter path to binary:")
 			var path string
 			fmt.Scanln(&path)
-			binaryLoaded = loadBinary(path)
+			binaryLoaded = loadBinary(path, loadAddr)
 		}
 	} else if len(os.Args) == 2 {
-		if !loadBinary(os.Args[1]) {
+		if !loadBinary(os.Args[1], loadAddr) {
 			fmt.Println(os.Args[1] + " could not be loaded")
 			os.Exit(1)
 		}
 	}
 
 	cpu.Reset()
+	// cpu.PC = 0x400
 	fmt.Println("Program Loaded.\nAwaiting Input...")
 	scanner := bufio.NewScanner(os.Stdin)
 	input := ""
@@ -311,6 +324,10 @@ func main() {
 			os.Exit(0)
 		} else if tokens[0] == "cur" {
 			printCurrentInstr()
+		} else if tokens[0] == "run" {
+			for i := 0; i < 1000; i++ {
+				cpu.Clock()
+			}
 		} else {
 			fmt.Println("Invalid Command")
 		}
