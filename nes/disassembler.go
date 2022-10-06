@@ -45,7 +45,11 @@ var opcodeNameTable = [256]opCodeAndAddrMode{
 }
 
 func DiassembleInstruction(bus *BUS, i uint16) (string, int) {
-	instMem := bus.getSlice(i)
+	instMem, err := bus.getSlice(i)
+	if err != nil {
+		fmt.Println(err)
+		return "", 0
+	}
 	instr := opcodeNameTable[instMem[0]]
 	size, operand := instr.addrMode(0, instMem)
 	return fmt.Sprintf("%s %s", instr.name, operand), size

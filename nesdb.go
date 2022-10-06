@@ -6,6 +6,7 @@
 // format specifiers: x (hex), b(binary), i (instruction), d (decimal, default value if not specified)
 // valid number formats: 0xFFFF (hex), 0b0001 (binary), 1234 (decimal, default)
 // valid commands:
+// set <register or address> = <hex, binary, or decimal number>
 // x, prints content in memory at provided address. Either literal number address of pc for program counter
 // p, prints the contents of the cpu's register: ex p x prints the x register
 // cur, prints the current instruction and how many cycles remaining in the execution of the instruction
@@ -21,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -30,7 +32,8 @@ import (
 var bus = nes.CreateBus()
 var cpu = nes.CreateCPU(bus)
 
-// loads binary specified by path into memory
+// loadBinary loads the binary specified by --binary into memory
+// at the starting address specified by -load flag
 func loadBinary(path string, loadAddr uint16) bool {
 
 	file, error := os.Open(path)
@@ -47,14 +50,13 @@ func loadBinary(path string, loadAddr uint16) bool {
 		fmt.Println("File exceeds 65KB")
 		return false
 	}
-
 	copy(cpu.Bus.Memory[loadAddr:], buf)
-	// copy(cpu.Bus.Memory, buf)
-
 	return true
 }
 
-// Converts a bool to a uint8
+// boolToUint8 returns the provided bool as a uint8
+// false = 0
+// true = 0x1
 func boolToUint8(x bool) uint8 {
 	if x {
 		return 1
@@ -63,84 +65,79 @@ func boolToUint8(x bool) uint8 {
 	}
 }
 
-// returns if a character (byte) is a digit or not
+// isDigit returns if a character (byte) is a digit or not
 func IsDigit(c byte) bool {
 	return c >= '0' && c <= '9'
 }
 
-// Returns the printf format specifier (or i for an instruction), the number of bytes to print (or instructions) or an error
+// get OutputFormatAndSize returns the printf format specifier (or i for instruction format), the number of bytes (or instructions)
+// to print or an error
 func getOutputFormatAndSize(formatSpecifier string) (string, int, error) {
-	if len(formatSpecifier) == 1 {
-		return "%d", 1, nil
-	}
 	formatSpecifier = strings.ToLower(formatSpecifier)
-	if len(formatSpecifier) < 3 || formatSpecifier[1] != '/' {
+	formatPattern := regexp.MustCompile(`^(x|p)(/(\d*)(x|d|b|i)?)?$`)
+	matches := formatPattern.FindStringSubmatch(formatSpecifier)
+	if len(matches) == 0 {
 		return "", 0, fmt.Errorf("invalid format specifier")
 	}
-	numberAndFormat := formatSpecifier[2:]
-	numberCharacters := ""
-	var formatString string
-	var format byte = 'd'
-	for i, char := range []byte(numberAndFormat) {
-		if IsDigit(char) {
-			numberCharacters += string(char)
-		} else {
-			format = numberAndFormat[i]
-			break
-		}
-	}
-	switch format {
-	case 'x':
-		formatString = "%02X"
-	case 'b':
-		formatString = "%08b"
-	case 'd':
-		formatString = "%d"
-	case 'i':
-		formatString = "i"
-	default:
-		return "", 0, fmt.Errorf("invalid format. Only x, b, or d are valid")
+	format := "%d"
+	switch matches[4] {
+	case "x":
+		format = "%02X"
+	case "b":
+		format = "%08b"
+	case "i":
+		format = "i"
 	}
 	numBytes := 1
-	if len(numberCharacters) > 0 {
-		num, err := strconv.ParseInt(numberCharacters, 10, 0)
-		if err != nil || num < 1 {
+	if matches[3] != "" {
+		num, err := strconv.ParseInt(matches[3], 10, 32) //can't error since regex is using \d*
+		if err != nil {
 			return "", 0, fmt.Errorf("invalid number of bytes specified")
 		}
 		numBytes = int(num)
+
 	}
-	return formatString, numBytes, nil
+	return format, int(numBytes), nil
 }
 
-// Returns the uint16 specified by a string or an error
+// getNumberArgument returns the uint16 specified by a string or an error
 // supported formats:
 // 1234 - Decimal (default)
 // 0x1234 - Hex
 // 0b0001001000110100 - Binary
 func getNumberArgument(number string) (uint16, error) {
 	base := 10
-	trimmedNumber := number
-	if len(number) > 2 {
-		format := strings.ToLower(number[0:2])
-		if format == "0x" { //hex format
-			base = 16
-			trimmedNumber = number[2:]
-		} else if format == "0b" { //binary format
-			base = 2
-			trimmedNumber = number[2:]
-		} else if !IsDigit(number[0]) || !IsDigit(number[1]) { //not decimal (implied) format
-			return 0, fmt.Errorf("invalid number")
-		}
+	number = strings.ToLower(number)
+	numPattern := regexp.MustCompile(`(?i)^(?P<format>0x|0b)?(?P<number>[0-9a-f]+)$`)
+	matches := numPattern.FindStringSubmatch(number)
+	if len(matches) == 0 {
+		return 0, fmt.Errorf("invalid number specified")
 	}
-	parsed, err := strconv.ParseUint(trimmedNumber, base, 16)
+	switch matches[1] {
+	case "0x":
+		base = 16
+	case "0b":
+		base = 2
+	}
+	num, err := strconv.ParseUint(matches[2], base, 16)
 	if err != nil {
-		return 0, fmt.Errorf("invalid number: %s", number)
+		return 0, fmt.Errorf("invalid number specified")
 	}
-	return uint16(parsed), nil
+	return uint16(num), nil
 
 }
 
-// Prints the value in memory at address specified by args[1] using
+// enforce8Bits returns the value as a uint8 or an error if the provided value was too big to store in a uint8
+// without loss of precision
+func enforce8Bits(value uint16) (uint8, error) {
+	if value&0xff00 != 0x0000 {
+		return 0, fmt.Errorf("%04X is too large to store in 8bits", value)
+	}
+	return uint8(value), nil
+
+}
+
+// printMemCmd prints the value in memory at address specified by args[1] using
 // format specified in args[0]
 // formats supported:
 // x/i prints as an instruction
@@ -193,7 +190,7 @@ func printMemCmd(args []string) {
 
 }
 
-// Prints cpu register by name
+// printCmd prints the value stored in a cpu register
 // command is p</format> <register name>
 // ignores number of bytes specified. EX: p/10x is the same as p/x
 // this is for code reuse
@@ -259,6 +256,71 @@ func printCmd(args []string) {
 	fmt.Printf("%s:\t"+format+"\n", strings.ToUpper(args[1]), value)
 }
 
+// Sets the register specified by target to value
+// If the register is an 8bit register and the provided value cannot be fit into 8bits, an error is returned
+// returns true, nil if the register was set
+// returns false, nil if target is not a register name
+// returns false, error if the target is an 8 bit register and the value cannot fit into 8 bits
+func setRegister(target string, value uint16) (bool, error) {
+	registerNames := map[string]bool{"x": true, "y": true, "ac": true, "sr": true, "sp": true}
+	if registerNames[target] && value&0xFF00 != 0x0000 {
+		return false, fmt.Errorf("provided value cannot be stored in 8bits")
+	}
+	switch target {
+	case "pc":
+		cpu.PC = value
+	case "x":
+		cpu.X = uint8(value)
+	case "y":
+		cpu.Y = uint8(value)
+	case "ac":
+		cpu.AC = uint8(value)
+	case "sp":
+		cpu.SP = uint8(value)
+	case "sr":
+		cpu.SR = uint8(value)
+	default:
+		return false, nil
+	}
+	return true, nil
+}
+
+// set command
+// set register, flag, or memory
+func setCmd(cmd string) {
+	setPattern := regexp.MustCompile(`(?i)^set ((?:0x|0b)?[0-9a-f]+|pc|ac|x|y|sr|sp) (=) ((?:0x|0b)?(?:[0-9a-f]+))\s*$`)
+	matches := setPattern.FindStringSubmatch(cmd)
+	if len(matches) == 0 {
+		fmt.Println("Invalid command format")
+		return
+	}
+	value, err := getNumberArgument(matches[3]) //get the value (last argument)
+	if err != nil {
+		fmt.Println(matches[3] + " is not a valid number")
+		return
+	}
+	isSet, err := setRegister(matches[1], value) //try to set the register
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	//if the register was successfully set we are done
+	if isSet {
+		return
+	}
+	targetAddr, err := getNumberArgument(matches[1])
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	convertedVal, err := enforce8Bits(value)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	cpu.Bus.SetByte(targetAddr, convertedVal)
+}
+
 // uses disassembler to print the current instruction pointed to by the program counter
 func printCurrentInstr() {
 	instr, _ := nes.DiassembleInstruction(bus, cpu.PC)
@@ -269,31 +331,25 @@ func main() {
 
 	//command line flags
 	addrStrPtr := flag.String("load", "0x4020", "Starting address in memory to store ROM")
+	binaryPathStrPtr := flag.String("binary", "", "Path to binary to load")
 	flag.Parse()
 	loadAddr, err := getNumberArgument(*addrStrPtr)
 	if err != nil {
 		fmt.Println("Invalid load address specified")
 		return
 	}
+	if *binaryPathStrPtr == "" {
+		fmt.Println("Missing path to binary")
+		fmt.Println("Usage:\n--binary=<PATH_TO_BINARY> [--load=<address to load binary>]")
+		os.Exit(1)
+	}
 
-	//if the user didn't provide a binary file as a command line argument
-	if len(os.Args) == 1 {
-		binaryLoaded := false
-		for !binaryLoaded {
-			fmt.Println("Enter path to binary:")
-			var path string
-			fmt.Scanln(&path)
-			binaryLoaded = loadBinary(path, loadAddr)
-		}
-	} else if len(os.Args) == 2 {
-		if !loadBinary(os.Args[1], loadAddr) {
-			fmt.Println(os.Args[1] + " could not be loaded")
-			os.Exit(1)
-		}
+	if !loadBinary(*binaryPathStrPtr, loadAddr) {
+		fmt.Println(*binaryPathStrPtr + " could not be loaded")
+		os.Exit(1)
 	}
 
 	cpu.Reset()
-	// cpu.PC = 0x400
 	fmt.Println("Program Loaded.\nAwaiting Input...")
 	scanner := bufio.NewScanner(os.Stdin)
 	input := ""
@@ -328,6 +384,8 @@ func main() {
 			for i := 0; i < 1000; i++ {
 				cpu.Clock()
 			}
+		} else if tokens[0] == "set" {
+			setCmd(input)
 		} else {
 			fmt.Println("Invalid Command")
 		}
