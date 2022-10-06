@@ -1,5 +1,7 @@
 package nes
 
+import "fmt"
+
 const MemorySize = 65536 //65 KB
 
 type BUS struct {
@@ -13,13 +15,16 @@ func CreateBus() *BUS {
 	return bus
 }
 
-func (bus *BUS) getSlice(addr uint16) []uint8 {
+func (bus *BUS) getSlice(addr uint16) ([]uint8, error) {
 	if addr <= 0x1FFF {
 		//0x0000-0x07FF internal RAM
 		//0x0800 - 0x1FFF mirrored
-		return bus.Memory[addr%0x0800 : addr%0x0800+3] //handle mirroring by wrapping the addresses around 0x0800
+		return bus.Memory[addr%0x0800 : addr%0x0800+3], nil //handle mirroring by wrapping the addresses around 0x0800
 	}
-	return bus.Memory[addr : addr+3]
+	if uint(addr)+3 >= 0xFFFF {
+		return []uint8{}, fmt.Errorf("Index out of range for dissasembling instruction")
+	}
+	return bus.Memory[addr:(addr + 3)], nil
 }
 
 func (bus *BUS) GetByte(addr uint16) uint8 {

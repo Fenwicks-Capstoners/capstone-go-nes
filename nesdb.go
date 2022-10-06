@@ -6,6 +6,7 @@
 // format specifiers: x (hex), b(binary), i (instruction), d (decimal, default value if not specified)
 // valid number formats: 0xFFFF (hex), 0b0001 (binary), 1234 (decimal, default)
 // valid commands:
+// set <register or address> = <hex, binary, or decimal number>
 // x, prints content in memory at provided address. Either literal number address of pc for program counter
 // p, prints the contents of the cpu's register: ex p x prints the x register
 // cur, prints the current instruction and how many cycles remaining in the execution of the instruction
@@ -31,7 +32,8 @@ import (
 var bus = nes.CreateBus()
 var cpu = nes.CreateCPU(bus)
 
-// loads binary specified by path into memory
+// loadBinary loads the binary specified by --binary into memory
+// at the starting address specified by -load flag
 func loadBinary(path string, loadAddr uint16) bool {
 
 	file, error := os.Open(path)
@@ -48,14 +50,13 @@ func loadBinary(path string, loadAddr uint16) bool {
 		fmt.Println("File exceeds 65KB")
 		return false
 	}
-	println("load", loadAddr)
 	copy(cpu.Bus.Memory[loadAddr:], buf)
-	// copy(cpu.Bus.Memory, buf)
-
 	return true
 }
 
-// Converts a bool to a uint8
+// boolToUint8 returns the provided bool as a uint8
+// false = 0
+// true = 0x1
 func boolToUint8(x bool) uint8 {
 	if x {
 		return 1
@@ -64,12 +65,13 @@ func boolToUint8(x bool) uint8 {
 	}
 }
 
-// returns if a character (byte) is a digit or not
+// isDigit returns if a character (byte) is a digit or not
 func IsDigit(c byte) bool {
 	return c >= '0' && c <= '9'
 }
 
-// Returns the printf format specifier (or i for an instruction), the number of bytes (or instructions) to print or an error
+// get OutputFormatAndSize returns the printf format specifier (or i for instruction format), the number of bytes (or instructions)
+// to print or an error
 func getOutputFormatAndSize(formatSpecifier string) (string, int, error) {
 	formatSpecifier = strings.ToLower(formatSpecifier)
 	formatPattern := regexp.MustCompile(`^(x|p)(/(\d*)(x|d|b|i)?)?$`)
@@ -98,7 +100,7 @@ func getOutputFormatAndSize(formatSpecifier string) (string, int, error) {
 	return format, int(numBytes), nil
 }
 
-// Returns the uint16 specified by a string or an error
+// getNumberArgument returns the uint16 specified by a string or an error
 // supported formats:
 // 1234 - Decimal (default)
 // 0x1234 - Hex
@@ -125,7 +127,17 @@ func getNumberArgument(number string) (uint16, error) {
 
 }
 
-// Prints the value in memory at address specified by args[1] using
+// enforce8Bits returns the value as a uint8 or an error if the provided value was too big to store in a uint8
+// without loss of precision
+func enforce8Bits(value uint16) (uint8, error) {
+	if value&0xff00 != 0x0000 {
+		return 0, fmt.Errorf("%04X is too large to store in 8bits", value)
+	}
+	return uint8(value), nil
+
+}
+
+// printMemCmd prints the value in memory at address specified by args[1] using
 // format specified in args[0]
 // formats supported:
 // x/i prints as an instruction
@@ -178,7 +190,7 @@ func printMemCmd(args []string) {
 
 }
 
-// Prints cpu register by name
+// printCmd prints the value stored in a cpu register
 // command is p</format> <register name>
 // ignores number of bytes specified. EX: p/10x is the same as p/x
 // this is for code reuse
@@ -244,42 +256,69 @@ func printCmd(args []string) {
 	fmt.Printf("%s:\t"+format+"\n", strings.ToUpper(args[1]), value)
 }
 
-// set command
-// set register, flag, or memory
-func setCmd(args []string) {
-	target := strings.ToLower(args[1])
-	value, err := getNumberArgument(args[3])
-	if err != nil {
-		fmt.Println("Invalid value")
-		return
+// Sets the register specified by target to value
+// If the register is an 8bit register and the provided value cannot be fit into 8bits, an error is returned
+// returns true, nil if the register was set
+// returns false, nil if target is not a register name
+// returns false, error if the target is an 8 bit register and the value cannot fit into 8 bits
+func setRegister(target string, value uint16) (bool, error) {
+	registerNames := map[string]bool{"x": true, "y": true, "ac": true, "sr": true, "sp": true}
+	if registerNames[target] && value&0xFF00 != 0x0000 {
+		return false, fmt.Errorf("provided value cannot be stored in 8bits")
 	}
 	switch target {
 	case "pc":
 		cpu.PC = value
-		return
 	case "x":
 		cpu.X = uint8(value)
-		return
 	case "y":
 		cpu.Y = uint8(value)
-		return
 	case "ac":
 		cpu.AC = uint8(value)
-		return
-	case "sr":
-		cpu.SR = uint8(value)
-		return
 	case "sp":
 		cpu.SP = uint8(value)
-		return
+	case "sr":
+		cpu.SR = uint8(value)
+	default:
+		return false, nil
+	}
+	return true, nil
+}
 
-	}
-	targetAddr, err := getNumberArgument(args[1])
-	if err != nil {
-		fmt.Println("Invalid target")
+// set command
+// set register, flag, or memory
+func setCmd(cmd string) {
+	setPattern := regexp.MustCompile(`(?i)^set ((?:0x|0b)?[0-9a-f]+|pc|ac|x|y|sr|sp) (=) ((?:0x|0b)?(?:[0-9a-f]+))\s*$`)
+	matches := setPattern.FindStringSubmatch(cmd)
+	if len(matches) == 0 {
+		fmt.Println("Invalid command format")
 		return
 	}
-	cpu.Bus.SetByte(targetAddr, uint8(value))
+	value, err := getNumberArgument(matches[3]) //get the value (last argument)
+	if err != nil {
+		fmt.Println(matches[3] + " is not a valid number")
+		return
+	}
+	isSet, err := setRegister(matches[1], value) //try to set the register
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	//if the register was successfully set we are done
+	if isSet {
+		return
+	}
+	targetAddr, err := getNumberArgument(matches[1])
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	convertedVal, err := enforce8Bits(value)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	cpu.Bus.SetByte(targetAddr, convertedVal)
 }
 
 // uses disassembler to print the current instruction pointed to by the program counter
@@ -311,7 +350,6 @@ func main() {
 	}
 
 	cpu.Reset()
-	// cpu.PC = 0x400
 	fmt.Println("Program Loaded.\nAwaiting Input...")
 	scanner := bufio.NewScanner(os.Stdin)
 	input := ""
@@ -347,7 +385,7 @@ func main() {
 				cpu.Clock()
 			}
 		} else if tokens[0] == "set" {
-			setCmd(tokens)
+			setCmd(input)
 		} else {
 			fmt.Println("Invalid Command")
 		}
