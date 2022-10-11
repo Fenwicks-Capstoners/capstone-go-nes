@@ -381,8 +381,17 @@ func main() {
 		} else if tokens[0] == "cur" {
 			printCurrentInstr()
 		} else if tokens[0] == "run" {
-			for i := 0; i < 1000; i++ {
-				cpu.Clock()
+			hashMap := make([]int, 68000)
+			for {
+				hashMap[cpu.PC]++
+				if hashMap[cpu.PC] > 100000 {
+					fmt.Printf("PC stuck on %04X\n", cpu.PC)
+					break
+				}
+				for cpu.RemCycles > 0 {
+					cpu.Clock()
+				}
+
 			}
 		} else if tokens[0] == "set" {
 			setCmd(input)
