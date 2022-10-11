@@ -82,22 +82,36 @@ func (cpu *CPU) setFlag(flag uint8, value bool) {
 		cpu.SR &^= (0x1 << flag) //bitwise and everything with 1 except the target bit (hence the and not equals &^=)
 	}
 }
-func setBit(number *uint8, bit uint8, value bool) {
+func setBit(number uint8, bit uint8, value bool) uint8 {
 	if value {
-		*number |= (0x1 << bit) // bitwise or target bit with 1 to set
+		return number | (0x1 << bit) // bitwise or target bit with 1 to set
 	} else {
-		*number &^= (0x1 << bit) //bitwise and everything with 1 except the target bit (hence the and not equals &^=)
+		return number &^ (0x1 << bit) //bitwise and everything with 1 except the target bit (hence the and not equals &^=)
 	}
 }
 
+// pushes word 16bits to stack in order HB-LB
+func (cpu *CPU) pusWord(val uint16) {
+	cpu.pushByte(uint8(val >> 8))
+	cpu.pushByte(uint8(val))
+}
+
+// pops 16 bit value from the stack ordered LB-HB
+func (cpu *CPU) popWord() uint16 {
+	var value uint16
+	value = uint16(cpu.popByte())
+	value |= (uint16(cpu.popByte()) << 8)
+	return value
+}
+
 // pushes to stack
-func (cpu *CPU) pushStack(val uint8) {
+func (cpu *CPU) pushByte(val uint8) {
 	cpu.Bus.SetByte(0x100+uint16(cpu.SP), val)
 	cpu.SP--
 }
 
 // pops from the stack
-func (cpu *CPU) popStack() uint8 {
+func (cpu *CPU) popByte() uint8 {
 	cpu.SP++
 	return cpu.Bus.GetByte(0x100 + uint16(cpu.SP))
 }
@@ -338,9 +352,20 @@ func (cpu *CPU) bpl() bool {
 	return cpu.branch(!cpu.GetFlag(NF))
 
 }
-func (cpu *CPU) brk() bool {
-	return false
 
+// force break
+// sets the break flag so the interrupt handler knows whether this was a software
+// of hardware initiated interrupt since brk and irq share the same vector
+// sets the break flag, then initiated interrupt stack behavior (pushing PC then SR)
+// then sets BF back to false since it should only ever be true on the stack since it isn't really
+// a physical flag in the 6502
+func (cpu *CPU) brk() bool {
+	cpu.PC++              //increment the pc, the brk instruction behaves like a 2 byte instruction where the immediate operand is ignored
+	cpu.setFlag(BF, true) //set the break flag so it is pushed to the stack
+	cpu.interrupt()
+	cpu.setFlag(BF, false)         //set back to false so it is only true on the stack, false oterwise
+	cpu.PC = cpu.Get2Bytes(0xfffe) //load IRQ/BRK vector
+	return false
 }
 
 // branch on overflow clear
@@ -478,8 +503,8 @@ func (cpu *CPU) jmp() bool {
 
 // jump save return
 func (cpu *CPU) jsr() bool {
-	cpu.pushStack(uint8(cpu.PC >> 8)) //push high byte
-	cpu.pushStack(uint8(cpu.PC) - 1)  //push low byte
+	cpu.pushByte(uint8(cpu.PC >> 8)) //push high byte
+	cpu.pushByte(uint8(cpu.PC) - 1)  //push low byte
 	//must subtract 1 because in the 6502 the pc isn't incremented by the time we push the lower byte
 	cpu.PC = cpu.OperandAddr
 	return false
@@ -542,21 +567,21 @@ func (cpu *CPU) ora() bool {
 
 // push accumulator to stack
 func (cpu *CPU) pha() bool {
-	cpu.pushStack(cpu.AC)
+	cpu.pushByte(cpu.AC)
 	return false
 
 }
 
 // push processor status to stack
 func (cpu *CPU) php() bool {
-	cpu.pushStack(cpu.SR | 0b00110000) //BRK and bit 5 are always 1 when not on the stack since they don't technically exist physically
+	cpu.pushByte(cpu.SR | 0b00110000) //BRK and bit 5 are always 1 when not on the stack since they don't technically exist physically
 	return false
 
 }
 
 // pull accumulator from stack
 func (cpu *CPU) pla() bool {
-	cpu.AC = cpu.popStack()
+	cpu.AC = cpu.popByte()
 	cpu.setNZFlags(cpu.AC)
 	return false
 
@@ -564,7 +589,7 @@ func (cpu *CPU) pla() bool {
 
 // pull processor status from stack
 func (cpu *CPU) plp() bool {
-	cpu.SR = cpu.popStack() | 0b00010000 //BF always true when not on the stack
+	cpu.SR = cpu.popByte() | 0b00010000 //BF always true when not on the stack
 	return false
 
 }
@@ -574,7 +599,7 @@ func (cpu *CPU) rol() bool {
 	value := cpu.Bus.GetByte(cpu.OperandAddr)
 	cpu.setFlag(CF, value&0x80 > 0) //store bit being shifted out into CF
 	value <<= 1
-	setBit(&value, 0, cpu.GetFlag(CF)) //perform the rotate
+	value = setBit(value, 0, cpu.GetFlag(CF)) //perform the rotate
 	cpu.Bus.SetByte(cpu.OperandAddr, value)
 	cpu.setNZFlags(value)
 	return false
@@ -585,7 +610,7 @@ func (cpu *CPU) rolA() bool {
 	cpu.setFlag(CF, cpu.AC&0x80 > 0) //store bit being shifted out into CF
 	println(cpu.AC & 0x8)
 	cpu.AC <<= 1
-	setBit(&cpu.AC, 0, cpu.GetFlag(CF)) //perform the rotate
+	cpu.AC = setBit(cpu.AC, 0, cpu.GetFlag(CF)) //perform the rotate
 	cpu.setNZFlags(cpu.AC)
 	return false
 
@@ -596,7 +621,7 @@ func (cpu *CPU) ror() bool {
 	value := cpu.Bus.GetByte(cpu.OperandAddr)
 	cpu.setFlag(CF, value&0x1 > 0) //store bit being shifted out into CF
 	value >>= 1
-	setBit(&value, 7, cpu.GetFlag(CF)) //perform the rotate
+	value = setBit(value, 7, cpu.GetFlag(CF)) //perform the rotate
 	cpu.Bus.SetByte(cpu.OperandAddr, value)
 	cpu.setNZFlags(value)
 	return false
@@ -604,20 +629,25 @@ func (cpu *CPU) ror() bool {
 func (cpu *CPU) rorA() bool {
 	cpu.setFlag(CF, cpu.AC&0x1 > 0) //store bit being shifted out into CF
 	cpu.AC >>= 1
-	setBit(&cpu.AC, 7, cpu.GetFlag(CF)) //perform the rotate
+	cpu.AC = setBit(cpu.AC, 7, cpu.GetFlag(CF)) //perform the rotate
 	cpu.setNZFlags(cpu.AC)
 	return false
 
 }
+
+// return from interrupt
 func (cpu *CPU) rti() bool {
+	cpu.SR = cpu.popByte()
+	cpu.PC = cpu.popWord()
+
 	return false
 
 }
 
 // return from subroutine
 func (cpu *CPU) rts() bool {
-	pcL := uint16(cpu.popStack())
-	pcH := uint16(cpu.popStack()) << 8
+	pcL := uint16(cpu.popByte())
+	pcH := uint16(cpu.popByte()) << 8
 	cpu.PC = (pcH | pcL) + 1 //must increment since JSR saves the lower byte before the pc is incremented
 	return false
 }
@@ -730,9 +760,39 @@ func (cpu *CPU) tya() bool {
 
 }
 
+// interrupt pushes the program counter to the stack
+// order HB-LB, followed by the value of the status register,
+func (cpu *CPU) interrupt() {
+	cpu.pusWord(cpu.PC)   // push cpu
+	cpu.pushByte(cpu.SR)  //push SR
+	cpu.setFlag(IF, true) //set interrupt disable flag
+}
+
+// IRQ executes a hardware maskable interrupt
+func (cpu *CPU) IRQ() {
+	//if the Interrupt Disable flag is set, the function
+	//simply returns
+	if cpu.GetFlag(IF) {
+		return
+	}
+	cpu.interrupt()
+	cpu.PC = cpu.Get2Bytes(0xfffa) //load the address from the interrupt vector
+
+}
+
+// NMI executes a hardware non-maskable interrupt
+func (cpu *CPU) NMI() {
+	cpu.interrupt()
+	cpu.PC = cpu.Get2Bytes(0xfffe)
+}
+
+// reset the processor state
 func (cpu *CPU) Reset() {
+	cpu.X = 0
+	cpu.Y = 0
+	cpu.AC = 0
 	cpu.SP = 0xFF                  //stack starts at 0x01FF and grows down
-	cpu.SR = 0b00110000            //reset status register
+	cpu.SR = 0b00100000            //reset status register
 	cpu.PC = cpu.Get2Bytes(0xFFFC) //retrieve program counter
 }
 

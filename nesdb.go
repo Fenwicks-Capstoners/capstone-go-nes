@@ -350,6 +350,7 @@ func main() {
 	}
 
 	cpu.Reset()
+	cpu.PC = loadAddr
 	fmt.Println("Program Loaded.\nAwaiting Input...")
 	scanner := bufio.NewScanner(os.Stdin)
 	input := ""

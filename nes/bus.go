@@ -22,7 +22,7 @@ func (bus *BUS) getSlice(addr uint16) ([]uint8, error) {
 		return bus.Memory[addr%0x0800 : addr%0x0800+3], nil //handle mirroring by wrapping the addresses around 0x0800
 	}
 	if uint(addr)+3 >= 0xFFFF {
-		return []uint8{}, fmt.Errorf("Index out of range for dissasembling instruction")
+		return []uint8{}, fmt.Errorf("index out of range for dissasembling instruction")
 	}
 	return bus.Memory[addr:(addr + 3)], nil
 }
