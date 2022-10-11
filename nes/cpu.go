@@ -1,5 +1,10 @@
 package nes
 
+import (
+	"fmt"
+	"os"
+)
+
 const NF = 7
 const OF = 6
 const BF = 4
@@ -239,6 +244,8 @@ Instruction Functions
 */
 
 func (cpu *CPU) xxx() bool { //invalid opcode will treat as NOP for now
+	fmt.Printf("Invalid opcode at 0x%04X", cpu.PC)
+	os.Exit(1)
 	return false
 }
 
