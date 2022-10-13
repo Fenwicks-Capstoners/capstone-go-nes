@@ -334,7 +334,12 @@ func (cpu *CPU) beq() bool {
 	return cpu.branch(cpu.GetFlag(ZF))
 
 }
+
 func (cpu *CPU) bit() bool {
+	cpu.SR &= 0b0011111111 //clear bits 7 and 6
+	operand := cpu.Bus.GetByte(cpu.OperandAddr)
+	cpu.SR |= (operand & 0b11000000) //set bits 7 and 6 of SR to bits 7 and 6 of operand
+	cpu.setFlag(ZF, operand&cpu.AC == 0)
 	return false
 
 }
@@ -367,6 +372,7 @@ func (cpu *CPU) bpl() bool {
 // then sets BF back to false since it should only ever be true on the stack since it isn't really
 // a physical flag in the 6502
 func (cpu *CPU) brk() bool {
+	fmt.Printf("BRK at 0x%04x\n", cpu.PC)
 	cpu.PC++              //increment the pc, the brk instruction behaves like a 2 byte instruction where the immediate operand is ignored
 	cpu.setFlag(BF, true) //set the break flag so it is pushed to the stack
 	cpu.interrupt()

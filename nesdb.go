@@ -385,9 +385,13 @@ func main() {
 			for {
 				hashMap[cpu.PC]++
 				if hashMap[cpu.PC] > 100000 {
+
 					fmt.Printf("PC stuck on %04X\n", cpu.PC)
 					break
 				}
+				instr, _ := nes.DiassembleInstruction(cpu.Bus, cpu.PC)
+				fmt.Printf("%04X %s\n", cpu.PC, instr)
+				cpu.Clock()
 				for cpu.RemCycles > 0 {
 					cpu.Clock()
 				}
