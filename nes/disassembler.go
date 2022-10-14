@@ -2,14 +2,11 @@ package nes
 
 import (
 	"fmt"
-	"io"
-	"log"
-	"os"
 )
 
 type opCodeAndAddrMode struct {
-	name     string                                 //opcode mnemonics
-	addrMode func(i int, data []byte) (int, string) //address mode function
+	name     string                                    //opcode mnemonics
+	addrMode func(addr uint16, bus *BUS) (int, string) //address mode function returns the size and menomic of the instruction
 }
 
 // addressing mode instruction sizes
@@ -44,77 +41,57 @@ var opcodeNameTable = [256]opCodeAndAddrMode{
 	{"BEQ", relative}, {"SBC", indirectIndex}, {"XXX", implied}, {"XXX", indirectIndex}, {"XXX", zeroPageX}, {"SBC", zeroPageX}, {"INC", zeroPageX}, {"XXX", zeroPageX}, {"SED", implied}, {"SBC", absoluteY}, {"XXX", implied}, {"XXX", absoluteY}, {"XXX", absoluteX}, {"SBC", absoluteX}, {"INC", absoluteX}, {"XXX", absoluteX},
 }
 
-func DiassembleInstruction(bus *BUS, i uint16) (string, int) {
-	instMem, err := bus.getSlice(i)
-	if err != nil {
-		fmt.Println(err)
-		return "", 0
-	}
-	instr := opcodeNameTable[instMem[0]]
-	size, operand := instr.addrMode(0, instMem)
+// DisassembleInstruction takes a BUS and address and returns
+// the string representation of the instruction and the size of that instruction
+func DiassembleInstruction(bus *BUS, addr uint16) (string, int) {
+	instr := opcodeNameTable[bus.GetByte(addr)]
+	size, operand := instr.addrMode(addr+1, bus)
 	return fmt.Sprintf("%s %s", instr.name, operand), size
 }
 
-func Disassemble(pathToBinary string) {
-	file, err := os.Open(pathToBinary)
-	if err != nil {
-		log.Fatal("Error opening binary file", err)
-	}
-	data, err := io.ReadAll(file)
-	if err != nil {
-		log.Fatal("Error reading binary")
-	}
-	i := 0 //the program counter
-	operand := ""
-	for i < len(data) {
-		// fmt.Printf("%04X\t", i)
-		dataByte := data[i]
-		fmt.Print(opcodeNameTable[dataByte].name + " ")
-		i, operand = opcodeNameTable[dataByte].addrMode(i, data)
-		fmt.Println(operand)
-	}
-
+// Address Mode functions return the operand and the addr of the next instruction in memory
+func implied(addr uint16, bus *BUS) (int, string) {
+	return 1, ""
 }
-
-// Address Mode functions return the operand and the index of the next instruction in the data buffer
-func implied(i int, data []byte) (int, string) {
-	return i + 1, ""
+func indexIndirect(addr uint16, bus *BUS) (int, string) {
+	return 2, fmt.Sprintf("($%02X, X)", bus.GetByte(addr))
 }
-func indexIndirect(i int, data []byte) (int, string) {
-	return i + 2, fmt.Sprintf("($%02X, X)", data[i+1])
+func zeroPage(addr uint16, bus *BUS) (int, string) {
+	return 2, fmt.Sprintf("$%02X", bus.GetByte(addr))
 }
-func zeroPage(i int, data []byte) (int, string) {
-	return i + 2, fmt.Sprintf("$%02X", data[i+1])
+func immediate(addr uint16, bus *BUS) (int, string) {
+	return 2, fmt.Sprintf("#$%02X", bus.GetByte(addr))
 }
-func immediate(i int, data []byte) (int, string) {
-	return i + 2, fmt.Sprintf("#$%02X", data[i+1])
+func accumulator(addr uint16, bus *BUS) (int, string) {
+	return 1, "A"
 }
-func accumulator(i int, data []byte) (int, string) {
-	return i + 1, "A"
+func absolute(addr uint16, bus *BUS) (int, string) {
+	return 3, fmt.Sprintf("$%02X%02X", bus.GetByte(addr+1), bus.GetByte(addr))
 }
-func absolute(i int, data []byte) (int, string) {
-	return i + 3, fmt.Sprintf("$%02X%02X", data[i+2], data[i+1])
-}
-func relative(i int, data []byte) (int, string) {
+func relative(addr uint16, bus *BUS) (int, string) {
 	//outputs absolute address instead of relative offset to match output of
 	// a disassembler I used as a reference for correct output
-	return i + 2, fmt.Sprintf("$%04X", i+2+int(int8(data[i+1])))
+	offset := uint16(bus.GetByte(addr))
+	if offset&0x80 > 0 {
+		offset |= 0xFF00
+	}
+	return 2, fmt.Sprintf("$%04X", (addr+1)+offset)
 }
-func indirectIndex(i int, data []byte) (int, string) {
-	return i + 2, fmt.Sprintf("($%02X), Y", data[i+1])
+func indirectIndex(addr uint16, bus *BUS) (int, string) {
+	return 2, fmt.Sprintf("($%02X), Y", bus.GetByte(addr))
 }
-func zeroPageX(i int, data []byte) (int, string) {
-	return i + 2, fmt.Sprintf("$%02X, X", data[i+1])
+func zeroPageX(addr uint16, bus *BUS) (int, string) {
+	return 2, fmt.Sprintf("$%02X, X", bus.GetByte(addr))
 }
-func zeroPageY(i int, data []byte) (int, string) {
-	return i + 2, fmt.Sprintf("$%02X, Y", data[i+1])
+func zeroPageY(addr uint16, bus *BUS) (int, string) {
+	return 2, fmt.Sprintf("$%02X, Y", bus.GetByte(addr))
 }
-func absoluteX(i int, data []byte) (int, string) {
-	return i + 3, fmt.Sprintf("$%02X%02X, X", data[i+2], data[i+1])
+func absoluteX(addr uint16, bus *BUS) (int, string) {
+	return 3, fmt.Sprintf("$%02X%02X, X", bus.GetByte(addr+1), bus.GetByte(addr))
 }
-func absoluteY(i int, data []byte) (int, string) {
-	return i + 3, fmt.Sprintf("$%02X%02X, Y", data[i+2], data[i+1])
+func absoluteY(addr uint16, bus *BUS) (int, string) {
+	return 3, fmt.Sprintf("$%02X%02X, Y", bus.GetByte(addr+1), bus.GetByte(addr))
 }
-func indirect(i int, data []byte) (int, string) {
-	return i + 3, fmt.Sprintf("($%02X%02X)", data[i+2], data[i+1])
+func indirect(addr uint16, bus *BUS) (int, string) {
+	return 3, fmt.Sprintf("($%02X%02X)", bus.GetByte(addr+1), bus.GetByte(addr))
 }

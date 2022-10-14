@@ -29,7 +29,8 @@ type CPU struct {
 	SP  uint8  //stack pointer
 	PC  uint16 //program counter
 	//helper fields
-	RemCycles        int                         //cycles left in current instruction
+	RemCycles        int //cycles left in current instruction
+	relAddr          uint16
 	OperandAddr      uint16                      // the address in RAM of the operand
 	instructionTable [256]instructionAndAddrMode //maps first instruction byte to instruction function
 }
@@ -166,14 +167,12 @@ func (cpu *CPU) absolute() bool {
 
 // operand is the PC + single byte specified after instruction (signed)
 func (cpu *CPU) relative() bool {
-	offset := int8(cpu.Bus.GetByte(cpu.PC))
+	offset := uint16(cpu.Bus.GetByte(cpu.PC))
 	cpu.PC++
-	isNeg := offset < 0
-	if isNeg {
-		cpu.OperandAddr = cpu.PC - uint16(-1*offset)
-	} else {
-		cpu.OperandAddr = cpu.PC + uint16(offset)
+	if offset&0x80 > 0 { //if negative
+		offset |= 0xFF00 //since we cast to a uint16, if the uint8 was negative, we need to set all the bits in the high byte to 1
 	}
+	cpu.relAddr = offset
 	return false
 }
 
@@ -207,6 +206,9 @@ func (cpu *CPU) zeroPageY() bool {
 func (cpu *CPU) absoluteX() bool {
 	absAddr := cpu.Get2Bytes(cpu.PC)
 	cpu.OperandAddr = absAddr + uint16(cpu.X)
+	// if cpu.GetFlag(CF) {
+	// 	cpu.OperandAddr++ //add the carry
+	// }
 	cpu.PC += 2
 	return (absAddr&0x00FF)+uint16(cpu.X) > 0xFF // return true if there was a carry
 }
@@ -216,6 +218,9 @@ func (cpu *CPU) absoluteX() bool {
 func (cpu *CPU) absoluteY() bool {
 	absAddr := cpu.Get2Bytes(cpu.PC)
 	cpu.OperandAddr = absAddr + uint16(cpu.Y)
+	// if cpu.GetFlag(CF) {
+	// 	cpu.OperandAddr++ //add the carry
+	// }
 	cpu.PC += 2
 	return (absAddr&0x00FF)+uint16(cpu.Y) > 0xFF // return true if there was a carry
 
@@ -306,8 +311,9 @@ func (cpu *CPU) aslA() bool {
 // branches if condition is true
 func (cpu *CPU) branch(condition bool) bool {
 	if condition {
-		cpu.RemCycles++                            //add 1 cycle if branch on same page, otherwise add 2. In either case we increment cycles at least once
-		if cpu.PC&0xFF00 != cpu.OperandAddr&0xFF { //if page boundary is crossed add the second additional cycle
+		cpu.RemCycles++
+		cpu.OperandAddr = cpu.PC + cpu.relAddr               //add 1 cycle if branch on same page, otherwise add 2. In either case we increment cycles at least once
+		if (cpu.PC & 0xFF00) != (cpu.OperandAddr & 0xFF00) { //if page boundary is crossed add the second additional cycle
 			cpu.RemCycles++
 		}
 		cpu.PC = cpu.OperandAddr //branch PC
@@ -372,11 +378,13 @@ func (cpu *CPU) bpl() bool {
 // then sets BF back to false since it should only ever be true on the stack since it isn't really
 // a physical flag in the 6502
 func (cpu *CPU) brk() bool {
-	fmt.Printf("BRK at 0x%04x\n", cpu.PC)
+	fmt.Printf("BRK at 0x%04x\n", cpu.PC-1)
 	cpu.PC++              //increment the pc, the brk instruction behaves like a 2 byte instruction where the immediate operand is ignored
 	cpu.setFlag(BF, true) //set the break flag so it is pushed to the stack
+	cpu.setFlag(5, true)  //set bit 5 to true
 	cpu.interrupt()
 	cpu.setFlag(BF, false)         //set back to false so it is only true on the stack, false oterwise
+	cpu.setFlag(5, false)          //set bit 5 back to false
 	cpu.PC = cpu.Get2Bytes(0xfffe) //load IRQ/BRK vector
 	return false
 }
@@ -602,7 +610,7 @@ func (cpu *CPU) pla() bool {
 
 // pull processor status from stack
 func (cpu *CPU) plp() bool {
-	cpu.SR = cpu.popByte() | 0b00010000 //BF always true when not on the stack
+	cpu.SR = cpu.popByte() & 0b11101111 // ignore BF and bit 5
 	return false
 
 }
@@ -650,7 +658,7 @@ func (cpu *CPU) rorA() bool {
 
 // return from interrupt
 func (cpu *CPU) rti() bool {
-	cpu.SR = cpu.popByte()
+	cpu.SR = cpu.popByte() & 0b11101111 //ignore bf
 	cpu.PC = cpu.popWord()
 
 	return false
@@ -805,7 +813,7 @@ func (cpu *CPU) Reset() {
 	cpu.Y = 0
 	cpu.AC = 0
 	cpu.SP = 0xFF                  //stack starts at 0x01FF and grows down
-	cpu.SR = 0b00100000            //reset status register
+	cpu.SR = 0b00100100            //reset status register unused and IF flag enabled
 	cpu.PC = cpu.Get2Bytes(0xFFFC) //retrieve program counter
 }
 
@@ -814,13 +822,13 @@ func (cpu *CPU) Clock() {
 	if cpu.RemCycles == 0 {
 		//decode instruction
 		instruction := cpu.instructionTable[cpu.Bus.GetByte(cpu.PC)]
+		cpu.RemCycles = instruction.cycles
 		//increment program counter
 		cpu.PC++
 		// run address mode function to populate operand
 		extraAddr := instruction.addrMode()
 		//execute instruction
 		extraIns := instruction.instr()
-		cpu.RemCycles = instruction.cycles
 		if extraAddr && extraIns {
 			cpu.RemCycles++
 		}
