@@ -50,7 +50,7 @@ func loadBinary(path string, loadAddr uint16) bool {
 		fmt.Println("File exceeds 65KB")
 		return false
 	}
-	copy(cpu.Bus.Memory[loadAddr:], buf)
+	fmt.Printf("%d bytes loaded\n", copy(cpu.Bus.Memory[loadAddr:], buf))
 	return true
 }
 
@@ -321,6 +321,13 @@ func setCmd(cmd string) {
 	cpu.Bus.SetByte(targetAddr, convertedVal)
 }
 
+func Btoi(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}
+
 // uses disassembler to print the current instruction pointed to by the program counter
 func printCurrentInstr() {
 	instr, _ := nes.DiassembleInstruction(bus, cpu.PC)
@@ -381,18 +388,33 @@ func main() {
 		} else if tokens[0] == "cur" {
 			printCurrentInstr()
 		} else if tokens[0] == "run" {
-			hashMap := make([]int, 68000)
+			totalCycles := 0
+			var prev_pc uint16 = 0xFFFF
 			for {
-				hashMap[cpu.PC]++
-				if hashMap[cpu.PC] > 100000 {
+
+				// instr, size := nes.DiassembleInstruction(cpu.Bus, cpu.PC)
+				// var instrBytes []string
+				// for i := 0; i < 3; i++ {
+				// 	if i < size {
+				// 		instrBytes = append(instrBytes, fmt.Sprintf("%02X", cpu.Bus.GetByte(cpu.PC+uint16(i))))
+				// 	} else {
+				// 		instrBytes = append(instrBytes, "  ")
+				// 	}
+				// }
+				// oldPc := cpu.PC
+				cpu.Clock()
+				if cpu.PC == prev_pc {
 
 					fmt.Printf("PC stuck on %04X\n", cpu.PC)
+					fmt.Println("Total Cycles", totalCycles)
 					break
 				}
-				instr, _ := nes.DiassembleInstruction(cpu.Bus, cpu.PC)
-				fmt.Printf("%04X %s\n", cpu.PC, instr)
-				cpu.Clock()
+				prev_pc = cpu.PC
+				totalCycles++
+				// fmt.Printf("%04X %s  %-13s |%02X %02X %02X %02X|%1b%1b%1b%1b%1b%1b|", oldPc, strings.Join(instrBytes, " "), instr, cpu.AC, cpu.X, cpu.Y, cpu.SP, Btoi(cpu.GetFlag(nes.NF)), Btoi(cpu.GetFlag(nes.OF)), Btoi(cpu.GetFlag(nes.DF)), Btoi(cpu.GetFlag(nes.IF)), Btoi(cpu.GetFlag(nes.ZF)), Btoi(cpu.GetFlag(nes.CF)))
+				// fmt.Println(cpu.RemCycles + 1)
 				for cpu.RemCycles > 0 {
+					totalCycles++
 					cpu.Clock()
 				}
 

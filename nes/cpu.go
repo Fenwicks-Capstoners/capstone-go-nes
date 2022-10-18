@@ -29,7 +29,8 @@ type CPU struct {
 	SP  uint8  //stack pointer
 	PC  uint16 //program counter
 	//helper fields
-	RemCycles        int                         //cycles left in current instruction
+	RemCycles        int //cycles left in current instruction
+	relAddr          uint16
 	OperandAddr      uint16                      // the address in RAM of the operand
 	instructionTable [256]instructionAndAddrMode //maps first instruction byte to instruction function
 }
@@ -166,14 +167,12 @@ func (cpu *CPU) absolute() bool {
 
 // operand is the PC + single byte specified after instruction (signed)
 func (cpu *CPU) relative() bool {
-	offset := int8(cpu.Bus.GetByte(cpu.PC))
+	offset := uint16(cpu.Bus.GetByte(cpu.PC))
 	cpu.PC++
-	isNeg := offset < 0
-	if isNeg {
-		cpu.OperandAddr = cpu.PC - uint16(-1*offset)
-	} else {
-		cpu.OperandAddr = cpu.PC + uint16(offset)
+	if offset&0x80 > 0 { //if negative
+		offset |= 0xFF00 //since we cast to a uint16, if the uint8 was negative, we need to set all the bits in the high byte to 1
 	}
+	cpu.relAddr = offset
 	return false
 }
 
@@ -207,6 +206,9 @@ func (cpu *CPU) zeroPageY() bool {
 func (cpu *CPU) absoluteX() bool {
 	absAddr := cpu.Get2Bytes(cpu.PC)
 	cpu.OperandAddr = absAddr + uint16(cpu.X)
+	// if cpu.GetFlag(CF) {
+	// 	cpu.OperandAddr++ //add the carry
+	// }
 	cpu.PC += 2
 	return (absAddr&0x00FF)+uint16(cpu.X) > 0xFF // return true if there was a carry
 }
@@ -216,6 +218,9 @@ func (cpu *CPU) absoluteX() bool {
 func (cpu *CPU) absoluteY() bool {
 	absAddr := cpu.Get2Bytes(cpu.PC)
 	cpu.OperandAddr = absAddr + uint16(cpu.Y)
+	// if cpu.GetFlag(CF) {
+	// 	cpu.OperandAddr++ //add the carry
+	// }
 	cpu.PC += 2
 	return (absAddr&0x00FF)+uint16(cpu.Y) > 0xFF // return true if there was a carry
 
@@ -253,18 +258,17 @@ func (cpu *CPU) xxx() bool { //invalid opcode will treat as NOP for now
 // since SBC utilizes this functionality, it is in a function that takes a literal value
 func (cpu *CPU) adcValue(value uint8) bool {
 	oldAc := cpu.AC
-	cpu.AC += value //add accumulator and memory
+	expandedAC := uint16(cpu.AC) //using 16 bit adding so we can capture carry out
+	expandedAC += uint16(value)  //add accumulator and memory
 	//add the carry flag
 	if cpu.GetFlag(CF) {
-		cpu.AC++
+		expandedAC++
 	}
+	cpu.setFlag(CF, expandedAC > 255) //if expandedAC is bigger than 255 (max value in 8 bit number), there is a carry
+	cpu.AC = uint8(expandedAC)        //set cpu.AC
 	cpu.setNZFlags(cpu.AC)
-	cpu.setFlag(CF, cpu.AC < oldAc || cpu.AC < value)                //if the final answer is smaller than either of the operands, there was a carry
-	oldAcSign := (oldAc & 0x80) >> 7                                 //get the sign bit of operand 1
-	valSign := (value & 0x80) >> 7                                   //get the sign bit of operand 2
-	AcSign := (cpu.AC & 0x80) >> 7                                   //get the sign bit of the sum
-	cpu.setFlag(OF, ^((oldAcSign^valSign)|^(oldAcSign^AcSign)) == 1) //set overflow flag
-	return false
+	cpu.setFlag(OF, (^(oldAc^value)&(oldAc^cpu.AC))&0x80 > 0) //set overflow flag
+	return true
 }
 
 // add memory to accumulator with carry
@@ -297,7 +301,6 @@ func (cpu *CPU) asl() bool {
 func (cpu *CPU) aslA() bool {
 	cpu.setFlag(CF, cpu.AC&0x80 > 0) //set CF to bit 7 since it is the bit being shifted out
 	cpu.AC <<= 1
-	cpu.Bus.SetByte(cpu.OperandAddr, cpu.AC)
 	cpu.setNZFlags(cpu.AC)
 	return false
 
@@ -306,8 +309,9 @@ func (cpu *CPU) aslA() bool {
 // branches if condition is true
 func (cpu *CPU) branch(condition bool) bool {
 	if condition {
-		cpu.RemCycles++                            //add 1 cycle if branch on same page, otherwise add 2. In either case we increment cycles at least once
-		if cpu.PC&0xFF00 != cpu.OperandAddr&0xFF { //if page boundary is crossed add the second additional cycle
+		cpu.RemCycles++
+		cpu.OperandAddr = cpu.PC + cpu.relAddr               //add 1 cycle if branch on same page, otherwise add 2. In either case we increment cycles at least once
+		if (cpu.PC & 0xFF00) != (cpu.OperandAddr & 0xFF00) { //if page boundary is crossed add the second additional cycle
 			cpu.RemCycles++
 		}
 		cpu.PC = cpu.OperandAddr //branch PC
@@ -336,7 +340,7 @@ func (cpu *CPU) beq() bool {
 }
 
 func (cpu *CPU) bit() bool {
-	cpu.SR &= 0b0011111111 //clear bits 7 and 6
+	cpu.SR &= 0b00111111 //clear bits 7 and 6
 	operand := cpu.Bus.GetByte(cpu.OperandAddr)
 	cpu.SR |= (operand & 0b11000000) //set bits 7 and 6 of SR to bits 7 and 6 of operand
 	cpu.setFlag(ZF, operand&cpu.AC == 0)
@@ -372,11 +376,12 @@ func (cpu *CPU) bpl() bool {
 // then sets BF back to false since it should only ever be true on the stack since it isn't really
 // a physical flag in the 6502
 func (cpu *CPU) brk() bool {
-	fmt.Printf("BRK at 0x%04x\n", cpu.PC)
 	cpu.PC++              //increment the pc, the brk instruction behaves like a 2 byte instruction where the immediate operand is ignored
 	cpu.setFlag(BF, true) //set the break flag so it is pushed to the stack
+	cpu.setFlag(5, true)  //set bit 5 to true
 	cpu.interrupt()
 	cpu.setFlag(BF, false)         //set back to false so it is only true on the stack, false oterwise
+	cpu.setFlag(5, false)          //set bit 5 back to false
 	cpu.PC = cpu.Get2Bytes(0xfffe) //load IRQ/BRK vector
 	return false
 }
@@ -602,7 +607,7 @@ func (cpu *CPU) pla() bool {
 
 // pull processor status from stack
 func (cpu *CPU) plp() bool {
-	cpu.SR = cpu.popByte() | 0b00010000 //BF always true when not on the stack
+	cpu.SR = cpu.popByte() & 0b11101111 // ignore BF and bit 5
 	return false
 
 }
@@ -610,9 +615,10 @@ func (cpu *CPU) plp() bool {
 // rotate one bit left memory
 func (cpu *CPU) rol() bool {
 	value := cpu.Bus.GetByte(cpu.OperandAddr)
-	cpu.setFlag(CF, value&0x80 > 0) //store bit being shifted out into CF
+	newCF := value&0x80 > 0 //store bit being shifted out into CF
 	value <<= 1
 	value = setBit(value, 0, cpu.GetFlag(CF)) //perform the rotate
+	cpu.setFlag(CF, newCF)
 	cpu.Bus.SetByte(cpu.OperandAddr, value)
 	cpu.setNZFlags(value)
 	return false
@@ -620,10 +626,10 @@ func (cpu *CPU) rol() bool {
 
 // rotate one bit left accumulator
 func (cpu *CPU) rolA() bool {
-	cpu.setFlag(CF, cpu.AC&0x80 > 0) //store bit being shifted out into CF
-	println(cpu.AC & 0x8)
+	newCF := cpu.AC&0x80 > 0 //store bit being shifted out into CF
 	cpu.AC <<= 1
 	cpu.AC = setBit(cpu.AC, 0, cpu.GetFlag(CF)) //perform the rotate
+	cpu.setFlag(CF, newCF)
 	cpu.setNZFlags(cpu.AC)
 	return false
 
@@ -632,17 +638,19 @@ func (cpu *CPU) rolA() bool {
 // rotate one bit right memory
 func (cpu *CPU) ror() bool {
 	value := cpu.Bus.GetByte(cpu.OperandAddr)
-	cpu.setFlag(CF, value&0x1 > 0) //store bit being shifted out into CF
+	newCF := value&0x1 > 0 //store bit being shifted out into CF
 	value >>= 1
 	value = setBit(value, 7, cpu.GetFlag(CF)) //perform the rotate
+	cpu.setFlag(CF, newCF)
 	cpu.Bus.SetByte(cpu.OperandAddr, value)
 	cpu.setNZFlags(value)
 	return false
 }
 func (cpu *CPU) rorA() bool {
-	cpu.setFlag(CF, cpu.AC&0x1 > 0) //store bit being shifted out into CF
+	newCF := cpu.AC&0x1 > 0 //store bit being shifted out into CF
 	cpu.AC >>= 1
 	cpu.AC = setBit(cpu.AC, 7, cpu.GetFlag(CF)) //perform the rotate
+	cpu.setFlag(CF, newCF)
 	cpu.setNZFlags(cpu.AC)
 	return false
 
@@ -650,7 +658,7 @@ func (cpu *CPU) rorA() bool {
 
 // return from interrupt
 func (cpu *CPU) rti() bool {
-	cpu.SR = cpu.popByte()
+	cpu.SR = cpu.popByte() & 0b11101111 //ignore bf
 	cpu.PC = cpu.popWord()
 
 	return false
@@ -678,7 +686,7 @@ func (cpu *CPU) rts() bool {
 // since ADC adds the carry value
 // This means to get proper subtraction, you must first set the carry flag using SEC
 func (cpu *CPU) sbc() bool {
-	return cpu.adcValue(cpu.Bus.GetByte(cpu.OperandAddr))
+	return cpu.adcValue(^cpu.Bus.GetByte(cpu.OperandAddr))
 
 }
 
@@ -805,7 +813,7 @@ func (cpu *CPU) Reset() {
 	cpu.Y = 0
 	cpu.AC = 0
 	cpu.SP = 0xFF                  //stack starts at 0x01FF and grows down
-	cpu.SR = 0b00100000            //reset status register
+	cpu.SR = 0b00100100            //reset status register unused and IF flag enabled
 	cpu.PC = cpu.Get2Bytes(0xFFFC) //retrieve program counter
 }
 
@@ -814,13 +822,13 @@ func (cpu *CPU) Clock() {
 	if cpu.RemCycles == 0 {
 		//decode instruction
 		instruction := cpu.instructionTable[cpu.Bus.GetByte(cpu.PC)]
+		cpu.RemCycles = instruction.cycles
 		//increment program counter
 		cpu.PC++
 		// run address mode function to populate operand
 		extraAddr := instruction.addrMode()
 		//execute instruction
 		extraIns := instruction.instr()
-		cpu.RemCycles = instruction.cycles
 		if extraAddr && extraIns {
 			cpu.RemCycles++
 		}
