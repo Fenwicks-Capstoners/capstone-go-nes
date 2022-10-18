@@ -258,18 +258,17 @@ func (cpu *CPU) xxx() bool { //invalid opcode will treat as NOP for now
 // since SBC utilizes this functionality, it is in a function that takes a literal value
 func (cpu *CPU) adcValue(value uint8) bool {
 	oldAc := cpu.AC
-	cpu.AC += value //add accumulator and memory
+	expandedAC := uint16(cpu.AC) //using 16 bit adding so we can capture carry out
+	expandedAC += uint16(value)  //add accumulator and memory
 	//add the carry flag
 	if cpu.GetFlag(CF) {
-		cpu.AC++
+		expandedAC++
 	}
+	cpu.setFlag(CF, expandedAC > 255) //if expandedAC is bigger than 255 (max value in 8 bit number), there is a carry
+	cpu.AC = uint8(expandedAC)        //set cpu.AC
 	cpu.setNZFlags(cpu.AC)
-	cpu.setFlag(CF, cpu.AC < oldAc || cpu.AC < value)                //if the final answer is smaller than either of the operands, there was a carry
-	oldAcSign := (oldAc & 0x80) >> 7                                 //get the sign bit of operand 1
-	valSign := (value & 0x80) >> 7                                   //get the sign bit of operand 2
-	AcSign := (cpu.AC & 0x80) >> 7                                   //get the sign bit of the sum
-	cpu.setFlag(OF, ^((oldAcSign^valSign)|^(oldAcSign^AcSign)) == 1) //set overflow flag
-	return false
+	cpu.setFlag(OF, (^(oldAc^value)&(oldAc^cpu.AC))&0x80 > 0) //set overflow flag
+	return true
 }
 
 // add memory to accumulator with carry
@@ -302,7 +301,6 @@ func (cpu *CPU) asl() bool {
 func (cpu *CPU) aslA() bool {
 	cpu.setFlag(CF, cpu.AC&0x80 > 0) //set CF to bit 7 since it is the bit being shifted out
 	cpu.AC <<= 1
-	cpu.Bus.SetByte(cpu.OperandAddr, cpu.AC)
 	cpu.setNZFlags(cpu.AC)
 	return false
 
@@ -342,7 +340,7 @@ func (cpu *CPU) beq() bool {
 }
 
 func (cpu *CPU) bit() bool {
-	cpu.SR &= 0b0011111111 //clear bits 7 and 6
+	cpu.SR &= 0b00111111 //clear bits 7 and 6
 	operand := cpu.Bus.GetByte(cpu.OperandAddr)
 	cpu.SR |= (operand & 0b11000000) //set bits 7 and 6 of SR to bits 7 and 6 of operand
 	cpu.setFlag(ZF, operand&cpu.AC == 0)
@@ -378,7 +376,6 @@ func (cpu *CPU) bpl() bool {
 // then sets BF back to false since it should only ever be true on the stack since it isn't really
 // a physical flag in the 6502
 func (cpu *CPU) brk() bool {
-	fmt.Printf("BRK at 0x%04x\n", cpu.PC-1)
 	cpu.PC++              //increment the pc, the brk instruction behaves like a 2 byte instruction where the immediate operand is ignored
 	cpu.setFlag(BF, true) //set the break flag so it is pushed to the stack
 	cpu.setFlag(5, true)  //set bit 5 to true
@@ -618,9 +615,10 @@ func (cpu *CPU) plp() bool {
 // rotate one bit left memory
 func (cpu *CPU) rol() bool {
 	value := cpu.Bus.GetByte(cpu.OperandAddr)
-	cpu.setFlag(CF, value&0x80 > 0) //store bit being shifted out into CF
+	newCF := value&0x80 > 0 //store bit being shifted out into CF
 	value <<= 1
 	value = setBit(value, 0, cpu.GetFlag(CF)) //perform the rotate
+	cpu.setFlag(CF, newCF)
 	cpu.Bus.SetByte(cpu.OperandAddr, value)
 	cpu.setNZFlags(value)
 	return false
@@ -628,10 +626,10 @@ func (cpu *CPU) rol() bool {
 
 // rotate one bit left accumulator
 func (cpu *CPU) rolA() bool {
-	cpu.setFlag(CF, cpu.AC&0x80 > 0) //store bit being shifted out into CF
-	println(cpu.AC & 0x8)
+	newCF := cpu.AC&0x80 > 0 //store bit being shifted out into CF
 	cpu.AC <<= 1
 	cpu.AC = setBit(cpu.AC, 0, cpu.GetFlag(CF)) //perform the rotate
+	cpu.setFlag(CF, newCF)
 	cpu.setNZFlags(cpu.AC)
 	return false
 
@@ -640,17 +638,19 @@ func (cpu *CPU) rolA() bool {
 // rotate one bit right memory
 func (cpu *CPU) ror() bool {
 	value := cpu.Bus.GetByte(cpu.OperandAddr)
-	cpu.setFlag(CF, value&0x1 > 0) //store bit being shifted out into CF
+	newCF := value&0x1 > 0 //store bit being shifted out into CF
 	value >>= 1
 	value = setBit(value, 7, cpu.GetFlag(CF)) //perform the rotate
+	cpu.setFlag(CF, newCF)
 	cpu.Bus.SetByte(cpu.OperandAddr, value)
 	cpu.setNZFlags(value)
 	return false
 }
 func (cpu *CPU) rorA() bool {
-	cpu.setFlag(CF, cpu.AC&0x1 > 0) //store bit being shifted out into CF
+	newCF := cpu.AC&0x1 > 0 //store bit being shifted out into CF
 	cpu.AC >>= 1
 	cpu.AC = setBit(cpu.AC, 7, cpu.GetFlag(CF)) //perform the rotate
+	cpu.setFlag(CF, newCF)
 	cpu.setNZFlags(cpu.AC)
 	return false
 
@@ -686,7 +686,7 @@ func (cpu *CPU) rts() bool {
 // since ADC adds the carry value
 // This means to get proper subtraction, you must first set the carry flag using SEC
 func (cpu *CPU) sbc() bool {
-	return cpu.adcValue(cpu.Bus.GetByte(cpu.OperandAddr))
+	return cpu.adcValue(^cpu.Bus.GetByte(cpu.OperandAddr))
 
 }
 

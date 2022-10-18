@@ -29,11 +29,11 @@ func (bus *BUS) getSlice(addr uint16) ([]uint8, error) {
 
 func (bus *BUS) GetByte(addr uint16) uint8 {
 	//internal RAM
-	if addr <= 0x1FFF {
-		//0x0000-0x07FF internal RAM
-		//0x0800 - 0x1FFF mirrored
-		return bus.Memory[addr%0x0800] //handle mirroring by wrapping the addresses around 0x0800
-	}
+	// if addr <= 0x1FFF {
+	// 	//0x0000-0x07FF internal RAM
+	// 	//0x0800 - 0x1FFF mirrored
+	// 	return bus.Memory[addr%0x0800] //handle mirroring by wrapping the addresses around 0x0800
+	// }
 
 	return bus.Memory[addr]
 }
