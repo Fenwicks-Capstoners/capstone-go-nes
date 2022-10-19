@@ -283,7 +283,7 @@ func (cpu *CPU) adc() bool {
 func (cpu *CPU) and() bool {
 	cpu.AC = cpu.AC & cpu.Bus.GetByte(cpu.OperandAddr)
 	cpu.setNZFlags(cpu.AC)
-	return false
+	return true
 }
 
 // shift left one bit (memory)
@@ -434,7 +434,7 @@ func (cpu *CPU) clv() bool {
 func (cpu *CPU) compareFunc(register uint8, value uint8) bool {
 	cpu.setNZFlags(register - value)
 	cpu.setFlag(CF, register >= value)
-	return false
+	return true
 
 }
 
@@ -483,7 +483,7 @@ func (cpu *CPU) dey() bool {
 func (cpu *CPU) eor() bool {
 	cpu.AC ^= cpu.Bus.GetByte(cpu.OperandAddr)
 	cpu.setNZFlags(cpu.AC)
-	return false
+	return true
 }
 
 // increment memory by 1
@@ -580,7 +580,7 @@ func (cpu *CPU) nop() bool {
 func (cpu *CPU) ora() bool {
 	cpu.AC |= cpu.Bus.GetByte(cpu.OperandAddr)
 	cpu.setNZFlags(cpu.AC)
-	return false
+	return true
 }
 
 // push accumulator to stack
