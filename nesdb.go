@@ -335,7 +335,7 @@ func printCurrentInstr() {
 }
 
 func main() {
-
+	nes.CreateCart("./roms/super_mario.nes")
 	//command line flags
 	addrStrPtr := flag.String("load", "0x4020", "Starting address in memory to store ROM")
 	binaryPathStrPtr := flag.String("binary", "", "Path to binary to load")
