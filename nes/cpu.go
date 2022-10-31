@@ -97,7 +97,7 @@ func setBit(number uint8, bit uint8, value bool) uint8 {
 }
 
 // pushes word 16bits to stack in order HB-LB
-func (cpu *CPU) pusWord(val uint16) {
+func (cpu *CPU) pushWord(val uint16) {
 	cpu.pushByte(uint8(val >> 8))
 	cpu.pushByte(uint8(val))
 }
@@ -784,7 +784,7 @@ func (cpu *CPU) tya() bool {
 // interrupt pushes the program counter to the stack
 // order HB-LB, followed by the value of the status register,
 func (cpu *CPU) interrupt() {
-	cpu.pusWord(cpu.PC)   // push cpu
+	cpu.pushWord(cpu.PC)  // push cpu
 	cpu.pushByte(cpu.SR)  //push SR
 	cpu.setFlag(IF, true) //set interrupt disable flag
 }
