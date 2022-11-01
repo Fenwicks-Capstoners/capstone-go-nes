@@ -14,14 +14,15 @@ type Cartridge struct {
 	//and need vertical mirroring, otherwise vertical arragnged tiles with horizontal mirroring
 	CHRRom              []byte
 	PRGRom              []byte
-	IgnoreMirrorControl bool  // if true, ignore MirrorVertically flag and provide four-screen vram
-	MapperNumber        uint8 //mapper to use
-	HasTrainer          bool  //if true, there is a 512 byte trainer before the PRG ROM
+	IgnoreMirrorControl bool   // if true, ignore MirrorVertically flag and provide four-screen vram
+	MapperNumber        uint8  //mapper to use
+	HasTrainer          bool   //if true, there is a 512 byte trainer before the PRG ROM
+	mapper              Mapper //the mapper to use
 }
 
 type Mapper interface {
-	CpuGetMapAddr(address uint8) uint8
-	CpuSetMapAddr(address uint8, value uint8)
+	CPUGetMapAddr(address uint16) uint16
+	PPUGetMapAddr(address uint16) uint16
 }
 
 // CreateCart load's an INES formatted Rom into
@@ -42,6 +43,9 @@ func CreateCart(filename string) (*Cartridge, error) {
 	cart.CHRRom = make([]byte, cart.CHRRomSize)
 	if err := cart.loadRoms(filename); err != nil {
 		return nil, fmt.Errorf("couldn't create cartridge, %s", err)
+	}
+	if err := cart.loadMapper(); err != nil {
+		return nil, fmt.Errorf("coudn't create cartridge, %s", err)
 	}
 	return cart, nil
 }
@@ -94,4 +98,33 @@ func (cart *Cartridge) parseHeader(filename string) error {
 		return fmt.Errorf("nes 2.0 roms not supported")
 	}
 	return nil
+}
+
+// loadMapper use's the cartridges mapper number from the header
+// to attach a mapper object to cartridge.MemMapper
+func (cart *Cartridge) loadMapper() error {
+	switch cart.MapperNumber {
+	case 0:
+		cart.mapper = CreateMapper_0(cart.PRGRomSize == 16*1024)
+	default:
+		return fmt.Errorf("unsupported mapper: %d", cart.MapperNumber)
+	}
+	return nil
+}
+
+func (cart *Cartridge) GetCPUByte(addr uint16) uint8 {
+	mapped_addr := cart.mapper.CPUGetMapAddr(addr)
+	return cart.PRGRom[mapped_addr]
+}
+func (cart *Cartridge) SetCPUByte(addr uint16, value uint8) {
+	mapped_addr := cart.mapper.CPUGetMapAddr(addr)
+	cart.PRGRom[mapped_addr] = value
+}
+func (cart *Cartridge) GetPPUByte(addr uint16) uint8 {
+	mapped_addr := cart.mapper.CPUGetMapAddr(addr)
+	return cart.CHRRom[mapped_addr]
+}
+func (cart *Cartridge) SetPPUByte(addr uint16, value uint8) {
+	mapped_addr := cart.mapper.CPUGetMapAddr(addr)
+	cart.CHRRom[mapped_addr] = value
 }

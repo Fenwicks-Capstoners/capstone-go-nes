@@ -1,16 +1,25 @@
 package nes
 
+import "fmt"
+
 const MemorySize = 2048 //2 KB
 
 type BUS struct {
-	Memory []uint8 // 2 kilobyte internal ram
-
+	Memory []uint8    // 2 kilobyte internal ram
+	Cart   *Cartridge //cartridge
+	CPU    *CPU
 }
 
-func CreateBus() *BUS {
+func CreateBus(romPath string) (*BUS, error) {
 	bus := new(BUS)
+	cart, err := CreateCart(romPath)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't create bus, %s", err)
+	}
+	bus.Cart = cart
+	bus.CPU = CreateCPU(bus)
 	bus.Memory = make([]uint8, MemorySize) //initalize ram
-	return bus
+	return bus, nil
 }
 
 func (bus *BUS) GetByte(addr uint16) uint8 {
@@ -38,7 +47,7 @@ func (bus *BUS) GetByte(addr uint16) uint8 {
 	//cartridge space
 	if addr <= 0xFFFF {
 		// TODO
-		return 0
+		return bus.Cart.GetCPUByte(addr)
 	}
 	panic("Unsporrted Address")
 }
@@ -65,7 +74,9 @@ func (bus *BUS) SetByte(addr uint16, value uint8) {
 	}
 	//cartridge space
 	if addr <= 0xFFFF {
+
 		// TODO
+		bus.Cart.SetCPUByte(addr, value)
 	}
 	panic("Unsporrted Address")
 
