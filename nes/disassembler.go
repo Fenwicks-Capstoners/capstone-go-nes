@@ -5,8 +5,8 @@ import (
 )
 
 type opCodeAndAddrMode struct {
-	name     string                                    //opcode mnemonics
-	addrMode func(addr uint16, bus *BUS) (int, string) //address mode function returns the size and menomic of the instruction
+	name     string                                          //opcode mnemonics
+	addrMode func(addr uint16, bus *NesSystem) (int, string) //address mode function returns the size and menomic of the instruction
 }
 
 // addressing mode instruction sizes
@@ -43,32 +43,32 @@ var opcodeNameTable = [256]opCodeAndAddrMode{
 
 // DisassembleInstruction takes a BUS and address and returns
 // the string representation of the instruction and the size of that instruction
-func DiassembleInstruction(bus *BUS, addr uint16) (string, int) {
+func DiassembleInstruction(bus *NesSystem, addr uint16) (string, int) {
 	instr := opcodeNameTable[bus.GetCPUByte(addr)]
 	size, operand := instr.addrMode(addr+1, bus)
 	return fmt.Sprintf("%s %s", instr.name, operand), size
 }
 
 // Address Mode functions return the operand and the addr of the next instruction in memory
-func implied(addr uint16, bus *BUS) (int, string) {
+func implied(addr uint16, bus *NesSystem) (int, string) {
 	return 1, ""
 }
-func indexIndirect(addr uint16, bus *BUS) (int, string) {
+func indexIndirect(addr uint16, bus *NesSystem) (int, string) {
 	return 2, fmt.Sprintf("($%02X, X)", bus.GetCPUByte(addr))
 }
-func zeroPage(addr uint16, bus *BUS) (int, string) {
+func zeroPage(addr uint16, bus *NesSystem) (int, string) {
 	return 2, fmt.Sprintf("$%02X", bus.GetCPUByte(addr))
 }
-func immediate(addr uint16, bus *BUS) (int, string) {
+func immediate(addr uint16, bus *NesSystem) (int, string) {
 	return 2, fmt.Sprintf("#$%02X", bus.GetCPUByte(addr))
 }
-func accumulator(addr uint16, bus *BUS) (int, string) {
+func accumulator(addr uint16, bus *NesSystem) (int, string) {
 	return 1, "A"
 }
-func absolute(addr uint16, bus *BUS) (int, string) {
+func absolute(addr uint16, bus *NesSystem) (int, string) {
 	return 3, fmt.Sprintf("$%02X%02X", bus.GetCPUByte(addr+1), bus.GetCPUByte(addr))
 }
-func relative(addr uint16, bus *BUS) (int, string) {
+func relative(addr uint16, bus *NesSystem) (int, string) {
 	//outputs absolute address instead of relative offset to match output of
 	// a disassembler I used as a reference for correct output
 	offset := uint16(bus.GetCPUByte(addr))
@@ -77,21 +77,21 @@ func relative(addr uint16, bus *BUS) (int, string) {
 	}
 	return 2, fmt.Sprintf("$%04X", (addr+1)+offset)
 }
-func indirectIndex(addr uint16, bus *BUS) (int, string) {
+func indirectIndex(addr uint16, bus *NesSystem) (int, string) {
 	return 2, fmt.Sprintf("($%02X), Y", bus.GetCPUByte(addr))
 }
-func zeroPageX(addr uint16, bus *BUS) (int, string) {
+func zeroPageX(addr uint16, bus *NesSystem) (int, string) {
 	return 2, fmt.Sprintf("$%02X, X", bus.GetCPUByte(addr))
 }
-func zeroPageY(addr uint16, bus *BUS) (int, string) {
+func zeroPageY(addr uint16, bus *NesSystem) (int, string) {
 	return 2, fmt.Sprintf("$%02X, Y", bus.GetCPUByte(addr))
 }
-func absoluteX(addr uint16, bus *BUS) (int, string) {
+func absoluteX(addr uint16, bus *NesSystem) (int, string) {
 	return 3, fmt.Sprintf("$%02X%02X, X", bus.GetCPUByte(addr+1), bus.GetCPUByte(addr))
 }
-func absoluteY(addr uint16, bus *BUS) (int, string) {
+func absoluteY(addr uint16, bus *NesSystem) (int, string) {
 	return 3, fmt.Sprintf("$%02X%02X, Y", bus.GetCPUByte(addr+1), bus.GetCPUByte(addr))
 }
-func indirect(addr uint16, bus *BUS) (int, string) {
+func indirect(addr uint16, bus *NesSystem) (int, string) {
 	return 3, fmt.Sprintf("($%02X%02X)", bus.GetCPUByte(addr+1), bus.GetCPUByte(addr))
 }

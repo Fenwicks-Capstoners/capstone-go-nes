@@ -21,7 +21,7 @@ type instructionAndAddrMode struct {
 	cycles int
 }
 type CPU struct {
-	Bus *BUS
+	Bus *NesSystem
 	AC  uint8  //accumulator register
 	X   uint8  //index register
 	Y   uint8  //index register
@@ -35,7 +35,7 @@ type CPU struct {
 	instructionTable [256]instructionAndAddrMode //maps first instruction byte to instruction function
 }
 
-func CreateCPU(bus *BUS) *CPU {
+func CreateCPU(bus *NesSystem) *CPU {
 	cpu := new(CPU)
 	cpu.populateInstructionTable()
 	cpu.Bus = bus

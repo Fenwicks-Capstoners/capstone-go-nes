@@ -29,7 +29,7 @@ import (
 	"github.com/MaxSmoot/NES_Emulator/nes"
 )
 
-var bus *nes.BUS
+var bus *nes.NesSystem
 
 // loadBinary loads the binary specified by --binary into memory
 // at the starting address specified by -load flag

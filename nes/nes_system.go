@@ -4,14 +4,14 @@ import "fmt"
 
 const MemorySize = 2048 //2 KB
 
-type BUS struct {
+type NesSystem struct {
 	Memory []uint8    // 2 kilobyte internal ram
 	Cart   *Cartridge //cartridge
 	CPU    *CPU
 }
 
-func CreateBus(romPath string) (*BUS, error) {
-	bus := new(BUS)
+func CreateBus(romPath string) (*NesSystem, error) {
+	bus := new(NesSystem)
 	cart, err := CreateCart(romPath)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't create bus, %s", err)
@@ -22,7 +22,7 @@ func CreateBus(romPath string) (*BUS, error) {
 	return bus, nil
 }
 
-func (bus *BUS) GetCPUByte(addr uint16) uint8 {
+func (bus *NesSystem) GetCPUByte(addr uint16) uint8 {
 	//internal RAM
 	if addr <= 0x1FFF {
 		//0x0000-0x07FF internal RAM
@@ -52,7 +52,7 @@ func (bus *BUS) GetCPUByte(addr uint16) uint8 {
 	panic("Unsporrted Address")
 }
 
-func (bus *BUS) SetCPUByte(addr uint16, value uint8) {
+func (bus *NesSystem) SetCPUByte(addr uint16, value uint8) {
 	//internal RAM
 	if addr <= 0x1FFF {
 		//0x0000-0x07FF internal RAM

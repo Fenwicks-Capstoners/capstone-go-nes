@@ -32,12 +32,15 @@ func CreateCart(filename string) (*Cartridge, error) {
 	if err := cart.parseHeader(filename); err != nil {
 		return nil, fmt.Errorf("couldn't create Cartridge: %s", err)
 	}
-	println("MapperNumber", cart.MapperNumber)
-	println("CHRRomSize", cart.CHRRomSize)
-	println("PRGRomSize", cart.PRGRomSize)
-	println("Mirror Vertically", cart.MirrorVertically)
-	println("ignore Mirror control bit", cart.IgnoreMirrorControl)
-	println("Has Battery Ram", cart.HasBatteryRam)
+	fmt.Println("====================")
+	fmt.Printf("Rom Information:\n")
+	fmt.Printf("Mapper: %d\n", cart.MapperNumber)
+	fmt.Printf("Character Rom Size: %dkb\n", cart.CHRRomSize/1024)
+	fmt.Printf("Program Rom Size: %dkb\n", cart.PRGRomSize/1024)
+	fmt.Printf("Mirror Vertically: %t\n", cart.MirrorVertically)
+	fmt.Printf("Ignore Mirror Control Bit: %t\n", cart.IgnoreMirrorControl)
+	fmt.Printf("Has Battery Ram: %t\n", cart.HasBatteryRam)
+	fmt.Println("====================")
 	//load roms
 	cart.PRGRom = make([]byte, cart.PRGRomSize)
 	cart.CHRRom = make([]byte, cart.CHRRomSize)
@@ -50,6 +53,7 @@ func CreateCart(filename string) (*Cartridge, error) {
 	return cart, nil
 }
 
+// loadRoms loads the CHR ROM and the PRG Rom into memory
 func (cart *Cartridge) loadRoms(filename string) error {
 	romFile, err := os.Open(filename)
 	if err != nil {
@@ -90,7 +94,9 @@ func (cart *Cartridge) parseHeader(filename string) error {
 	cart.CHRRomSize = 8192 * int(buffer[5])  //compute CHR Rom size
 	cart.MirrorVertically = getBit(0, buffer[6])
 	cart.IgnoreMirrorControl = getBit(3, buffer[6])
+	cart.HasBatteryRam = getBit(1, buffer[6])
 	cart.MapperNumber = (buffer[6] >> 4) | (buffer[7] & 0xF0)
+
 	if getBit(0, buffer[7]) {
 		return fmt.Errorf("rom is for VS Unisystem")
 	}
