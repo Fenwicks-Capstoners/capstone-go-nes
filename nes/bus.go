@@ -22,7 +22,7 @@ func CreateBus(romPath string) (*BUS, error) {
 	return bus, nil
 }
 
-func (bus *BUS) GetByte(addr uint16) uint8 {
+func (bus *BUS) GetCPUByte(addr uint16) uint8 {
 	//internal RAM
 	if addr <= 0x1FFF {
 		//0x0000-0x07FF internal RAM
@@ -52,7 +52,7 @@ func (bus *BUS) GetByte(addr uint16) uint8 {
 	panic("Unsporrted Address")
 }
 
-func (bus *BUS) SetByte(addr uint16, value uint8) {
+func (bus *BUS) SetCPUByte(addr uint16, value uint8) {
 	//internal RAM
 	if addr <= 0x1FFF {
 		//0x0000-0x07FF internal RAM
@@ -62,22 +62,24 @@ func (bus *BUS) SetByte(addr uint16, value uint8) {
 	//NES PPU Registers
 	if addr <= 0x3FFF {
 		// TODO
-
+		return
 	}
 	//NES APU and I/O registers
 	if addr <= 0x4017 {
 		// TODO
+		return
 	}
 	//APU and I/O functionality that is normally disabled
 	if addr <= 0x401f {
 		// TODO
+		return
 	}
 	//cartridge space
 	if addr <= 0xFFFF {
 
 		// TODO
 		bus.Cart.SetCPUByte(addr, value)
+		return
 	}
 	panic("Unsporrted Address")
-
 }

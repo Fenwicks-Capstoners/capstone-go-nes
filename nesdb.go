@@ -183,7 +183,7 @@ func printMemCmd(args []string) {
 		if i%8 == 0 {
 			fmt.Printf("\n0x%04X:\t", address+i)
 		}
-		fmt.Printf(format+" ", bus.CPU.Bus.GetByte(address+i))
+		fmt.Printf(format+" ", bus.CPU.Bus.GetCPUByte(address+i))
 	}
 	fmt.Println()
 
@@ -317,7 +317,7 @@ func setCmd(cmd string) {
 		fmt.Println(err)
 		return
 	}
-	bus.CPU.Bus.SetByte(targetAddr, convertedVal)
+	bus.CPU.Bus.SetCPUByte(targetAddr, convertedVal)
 }
 
 func Btoi(b bool) int {
@@ -334,34 +334,38 @@ func printCurrentInstr() {
 }
 
 func main() {
-	busObject, err := nes.CreateBus("./roms/super_mario.nes")
+	romPath := flag.String("rom", "", "Path to .nes rom")
+	flag.Parse()
+	if *romPath == "" {
+		fmt.Println("Must include a rom path. --rom=<Path to rom>")
+		os.Exit(1)
+	}
+	busObject, err := nes.CreateBus(*romPath)
 	if err != nil {
 		fmt.Println(err)
-	}
-	bus = busObject
-	return
-	//command line flags
-	addrStrPtr := flag.String("load", "0x4020", "Starting address in memory to store ROM")
-	binaryPathStrPtr := flag.String("binary", "", "Path to binary to load")
-	flag.Parse()
-	loadAddr, err := getNumberArgument(*addrStrPtr)
-	if err != nil {
-		fmt.Println("Invalid load address specified")
-		return
-	}
-	if *binaryPathStrPtr == "" {
-		fmt.Println("Missing path to binary")
-		fmt.Println("Usage:\n--binary=<PATH_TO_BINARY> [--load=<address to load binary>]")
 		os.Exit(1)
 	}
+	bus = busObject //command line flags
+	// binaryPathStrPtr := flag.String("binary", "", "Path to binary to load")
 
-	if !loadBinary(*binaryPathStrPtr, loadAddr) {
-		fmt.Println(*binaryPathStrPtr + " could not be loaded")
-		os.Exit(1)
-	}
+	// loadAddr, err := getNumberArgument(*addrStrPtr)
+	// if err != nil {
+	// 	fmt.Println("Invalid load address specified")
+	// 	return
+	// }
+	// if *binaryPathStrPtr == "" {
+	// 	fmt.Println("Missing path to binary")
+	// 	fmt.Println("Usage:\n--binary=<PATH_TO_BINARY> [--load=<address to load binary>]")
+	// 	os.Exit(1)
+	// }
+
+	// if !loadBinary(*binaryPathStrPtr, loadAddr) {
+	// 	fmt.Println(*binaryPathStrPtr + " could not be loaded")
+	// 	os.Exit(1)
+	// }
 
 	bus.CPU.Reset()
-	fmt.Println("Program Loaded.\nAwaiting Input...")
+	fmt.Println("Rom Loaded.\nAwaiting Input...")
 	scanner := bufio.NewScanner(os.Stdin)
 	input := ""
 	for {
@@ -400,7 +404,7 @@ func main() {
 				// var instrBytes []string
 				// for i := 0; i < 3; i++ {
 				// 	if i < size {
-				// 		instrBytes = append(instrBytes, fmt.Sprintf("%02X", bus.CPU.Bus.GetByte(bus.CPU.PC+uint16(i))))
+				// 		instrBytes = append(instrBytes, fmt.Sprintf("%02X", bus.CPU.Bus.GetCPUByte(bus.CPU.PC+uint16(i))))
 				// 	} else {
 				// 		instrBytes = append(instrBytes, "  ")
 				// 	}

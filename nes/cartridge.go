@@ -21,8 +21,8 @@ type Cartridge struct {
 }
 
 type Mapper interface {
-	CPUGetMapAddr(address uint16) uint16
-	PPUGetMapAddr(address uint16) uint16
+	CPUGetMapAddr(address uint16) uint32
+	PPUGetMapAddr(address uint16) uint32
 }
 
 // CreateCart load's an INES formatted Rom into
@@ -118,6 +118,7 @@ func (cart *Cartridge) GetCPUByte(addr uint16) uint8 {
 }
 func (cart *Cartridge) SetCPUByte(addr uint16, value uint8) {
 	mapped_addr := cart.mapper.CPUGetMapAddr(addr)
+	fmt.Printf("Addr: 0x%04X Mapped Addr: 0x%08X\n", addr, mapped_addr)
 	cart.PRGRom[mapped_addr] = value
 }
 func (cart *Cartridge) GetPPUByte(addr uint16) uint8 {

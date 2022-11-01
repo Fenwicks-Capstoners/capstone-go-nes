@@ -10,15 +10,15 @@ func CreateMapper_0(mirrorPRGRom bool) *Mapper_0 {
 	return mapper
 }
 
-func (mapper *Mapper_0) CPUGetMapAddr(addr uint16) uint16 {
+func (mapper *Mapper_0) CPUGetMapAddr(addr uint16) uint32 {
 	if mapper.mirrorPRGRom {
-		return (addr - 0x8000) & 0x3FFF //mirror first 16kb
+		return (uint32(addr) - 0x00008000) & 0x00003FFF //mirror first 16kb
 	}
-	return addr - 0x8000 //not mirrored
+	return uint32(addr) - 0x00008000 //not mirrored
 }
-func (mapper *Mapper_0) PPUGetMapAddr(addr uint16) uint16 {
+func (mapper *Mapper_0) PPUGetMapAddr(addr uint16) uint32 {
 	if mapper.mirrorPRGRom {
-		return (addr - 0x8000) & 0x3FFF //mirror first 16kb
+		return (uint32(addr) - 0x8000) & 0x3FFF //mirror first 16kb
 	}
-	return addr - 0x8000 //not mirrored
+	return uint32(addr) - 0x8000 //not mirrored
 }
