@@ -8,9 +8,9 @@
 // valid commands:
 // set <register or address> = <hex, binary, or decimal number>
 // x, prints content in memory at provided address. Either literal number address of pc for program counter
-// p, prints the contents of the cpu's register: ex p x prints the x register
+// p, prints the contents of the bus.CPU's register: ex p x prints the x register
 // cur, prints the current instruction and how many cycles remaining in the execution of the instruction
-// clock, clocks the cpu
+// clock, clocks the bus.CPU
 // ni, executes next instruction
 // clear, clears the terminal
 // quit, quits the application
@@ -29,15 +29,14 @@ import (
 	"github.com/MaxSmoot/NES_Emulator/nes"
 )
 
-var bus = nes.CreateBus()
-var cpu = nes.CreateCPU(bus)
+var bus *nes.NesSystem
 
 // loadBinary loads the binary specified by --binary into memory
 // at the starting address specified by -load flag
 func loadBinary(path string, loadAddr uint16) bool {
 
-	file, error := os.Open(path)
-	if error != nil {
+	file, err := os.Open(path)
+	if err != nil {
 		fmt.Println("Invalid Path")
 		return false
 	}
@@ -50,7 +49,7 @@ func loadBinary(path string, loadAddr uint16) bool {
 		fmt.Println("File exceeds 65KB")
 		return false
 	}
-	fmt.Printf("%d bytes loaded\n", copy(cpu.Bus.Memory[loadAddr:], buf))
+	fmt.Printf("%d bytes loaded\n", copy(bus.CPU.Bus.Memory[loadAddr:], buf))
 	return true
 }
 
@@ -162,7 +161,7 @@ func printMemCmd(args []string) {
 	}
 	var address uint16
 	if strings.ToLower(args[1]) == "pc" {
-		address = cpu.PC
+		address = bus.CPU.PC
 	} else {
 		num, err := getNumberArgument(args[1])
 		if err != nil {
@@ -174,7 +173,7 @@ func printMemCmd(args []string) {
 	if format == "i" {
 		offset := 0
 		for i := 0; i < numBytes; i++ {
-			instr, size := nes.DiassembleInstruction(cpu.Bus, address+uint16(offset))
+			instr, size := nes.DiassembleInstruction(bus.CPU.Bus, address+uint16(offset))
 			fmt.Printf("0x%04X:\t%s\n", address+uint16(offset), instr)
 			offset += size
 		}
@@ -184,13 +183,13 @@ func printMemCmd(args []string) {
 		if i%8 == 0 {
 			fmt.Printf("\n0x%04X:\t", address+i)
 		}
-		fmt.Printf(format+" ", cpu.Bus.GetByte(address+i))
+		fmt.Printf(format+" ", bus.CPU.Bus.GetCPUByte(address+i))
 	}
 	fmt.Println()
 
 }
 
-// printCmd prints the value stored in a cpu register
+// printCmd prints the value stored in a bus.CPU register
 // command is p</format> <register name>
 // ignores number of bytes specified. EX: p/10x is the same as p/x
 // this is for code reuse
@@ -220,34 +219,34 @@ func printCmd(args []string) {
 	switch strings.ToUpper(args[1]) {
 	//currently, printing the program counter will ignore the format and always print in HEX
 	case "PC":
-		fmt.Printf("0x%04X\n", cpu.PC)
+		fmt.Printf("0x%04X\n", bus.CPU.PC)
 		return
 	case "X":
-		value = cpu.X
+		value = bus.CPU.X
 	case "Y":
-		value = cpu.Y
+		value = bus.CPU.Y
 	case "AC":
-		value = cpu.AC
+		value = bus.CPU.AC
 	case "SR":
-		value = cpu.SR
+		value = bus.CPU.SR
 	case "S":
-		value = cpu.SP
+		value = bus.CPU.SP
 	case "CF":
-		value = boolToUint8(cpu.GetFlag(nes.CF))
+		value = boolToUint8(bus.CPU.GetFlag(nes.CF))
 	case "ZF":
-		value = boolToUint8(cpu.GetFlag(nes.ZF))
+		value = boolToUint8(bus.CPU.GetFlag(nes.ZF))
 	case "IF":
-		value = boolToUint8(cpu.GetFlag(nes.IF))
+		value = boolToUint8(bus.CPU.GetFlag(nes.IF))
 	case "DF":
-		value = boolToUint8(cpu.GetFlag(nes.DF))
+		value = boolToUint8(bus.CPU.GetFlag(nes.DF))
 	case "OF":
-		value = boolToUint8(cpu.GetFlag(nes.OF))
+		value = boolToUint8(bus.CPU.GetFlag(nes.OF))
 	case "NF":
-		value = boolToUint8(cpu.GetFlag(nes.NF))
+		value = boolToUint8(bus.CPU.GetFlag(nes.NF))
 	case "BF":
-		value = boolToUint8(cpu.GetFlag(nes.BF))
+		value = boolToUint8(bus.CPU.GetFlag(nes.BF))
 	case "OP":
-		fmt.Printf("0x%04X\n", cpu.OperandAddr)
+		fmt.Printf("0x%04X\n", bus.CPU.OperandAddr)
 		return
 	default:
 		fmt.Println("Can't print " + args[1])
@@ -268,17 +267,17 @@ func setRegister(target string, value uint16) (bool, error) {
 	}
 	switch target {
 	case "pc":
-		cpu.PC = value
+		bus.CPU.PC = value
 	case "x":
-		cpu.X = uint8(value)
+		bus.CPU.X = uint8(value)
 	case "y":
-		cpu.Y = uint8(value)
+		bus.CPU.Y = uint8(value)
 	case "ac":
-		cpu.AC = uint8(value)
+		bus.CPU.AC = uint8(value)
 	case "sp":
-		cpu.SP = uint8(value)
+		bus.CPU.SP = uint8(value)
 	case "sr":
-		cpu.SR = uint8(value)
+		bus.CPU.SR = uint8(value)
 	default:
 		return false, nil
 	}
@@ -318,7 +317,7 @@ func setCmd(cmd string) {
 		fmt.Println(err)
 		return
 	}
-	cpu.Bus.SetByte(targetAddr, convertedVal)
+	bus.CPU.Bus.SetCPUByte(targetAddr, convertedVal)
 }
 
 func Btoi(b bool) int {
@@ -330,34 +329,43 @@ func Btoi(b bool) int {
 
 // uses disassembler to print the current instruction pointed to by the program counter
 func printCurrentInstr() {
-	instr, _ := nes.DiassembleInstruction(bus, cpu.PC)
-	fmt.Printf("0x%04X:\t%s |\tCycles left executing previous instruction: %d\n", cpu.PC, instr, cpu.RemCycles)
+	instr, _ := nes.DiassembleInstruction(bus, bus.CPU.PC)
+	fmt.Printf("0x%04X:\t%s |\tCycles left executing previous instruction: %d\n", bus.CPU.PC, instr, bus.CPU.RemCycles)
 }
 
 func main() {
-
-	//command line flags
-	addrStrPtr := flag.String("load", "0x4020", "Starting address in memory to store ROM")
-	binaryPathStrPtr := flag.String("binary", "", "Path to binary to load")
+	romPath := flag.String("rom", "", "Path to .nes rom")
 	flag.Parse()
-	loadAddr, err := getNumberArgument(*addrStrPtr)
+	if *romPath == "" {
+		fmt.Println("Must include a rom path. --rom=<Path to rom>")
+		os.Exit(1)
+	}
+	busObject, err := nes.CreateBus(*romPath)
 	if err != nil {
-		fmt.Println("Invalid load address specified")
-		return
-	}
-	if *binaryPathStrPtr == "" {
-		fmt.Println("Missing path to binary")
-		fmt.Println("Usage:\n--binary=<PATH_TO_BINARY> [--load=<address to load binary>]")
+		fmt.Println(err)
 		os.Exit(1)
 	}
+	bus = busObject //command line flags
+	// binaryPathStrPtr := flag.String("binary", "", "Path to binary to load")
 
-	if !loadBinary(*binaryPathStrPtr, loadAddr) {
-		fmt.Println(*binaryPathStrPtr + " could not be loaded")
-		os.Exit(1)
-	}
+	// loadAddr, err := getNumberArgument(*addrStrPtr)
+	// if err != nil {
+	// 	fmt.Println("Invalid load address specified")
+	// 	return
+	// }
+	// if *binaryPathStrPtr == "" {
+	// 	fmt.Println("Missing path to binary")
+	// 	fmt.Println("Usage:\n--binary=<PATH_TO_BINARY> [--load=<address to load binary>]")
+	// 	os.Exit(1)
+	// }
 
-	cpu.Reset()
-	fmt.Println("Program Loaded.\nAwaiting Input...")
+	// if !loadBinary(*binaryPathStrPtr, loadAddr) {
+	// 	fmt.Println(*binaryPathStrPtr + " could not be loaded")
+	// 	os.Exit(1)
+	// }
+
+	bus.CPU.Reset()
+	fmt.Println("Rom Loaded.\nAwaiting Input...")
 	scanner := bufio.NewScanner(os.Stdin)
 	input := ""
 	for {
@@ -375,13 +383,13 @@ func main() {
 		} else if tokens[0] == "clear" {
 			fmt.Print("\033[H\033[2J")
 		} else if tokens[0] == "ni" {
-			cpu.Clock()
-			for cpu.RemCycles > 0 {
-				cpu.Clock()
+			bus.CPU.Clock()
+			for bus.CPU.RemCycles > 0 {
+				bus.CPU.Clock()
 			}
 			printCurrentInstr()
 		} else if tokens[0] == "clock" {
-			cpu.Clock()
+			bus.CPU.Clock()
 			printCurrentInstr()
 		} else if tokens[0] == "quit" {
 			os.Exit(0)
@@ -392,30 +400,30 @@ func main() {
 			var prev_pc uint16 = 0xFFFF
 			for {
 
-				// instr, size := nes.DiassembleInstruction(cpu.Bus, cpu.PC)
+				// instr, size := nes.DiassembleInstruction(bus.CPU.Bus, bus.CPU.PC)
 				// var instrBytes []string
 				// for i := 0; i < 3; i++ {
 				// 	if i < size {
-				// 		instrBytes = append(instrBytes, fmt.Sprintf("%02X", cpu.Bus.GetByte(cpu.PC+uint16(i))))
+				// 		instrBytes = append(instrBytes, fmt.Sprintf("%02X", bus.CPU.Bus.GetCPUByte(bus.CPU.PC+uint16(i))))
 				// 	} else {
 				// 		instrBytes = append(instrBytes, "  ")
 				// 	}
 				// }
-				// oldPc := cpu.PC
-				cpu.Clock()
-				if cpu.PC == prev_pc {
+				// oldPc := bus.CPU.PC
+				bus.CPU.Clock()
+				if bus.CPU.PC == prev_pc {
 
-					fmt.Printf("PC stuck on %04X\n", cpu.PC)
+					fmt.Printf("PC stuck on %04X\n", bus.CPU.PC)
 					fmt.Println("Total Cycles", totalCycles)
 					break
 				}
-				prev_pc = cpu.PC
+				prev_pc = bus.CPU.PC
 				totalCycles++
-				// fmt.Printf("%04X %s  %-13s |%02X %02X %02X %02X|%1b%1b%1b%1b%1b%1b|", oldPc, strings.Join(instrBytes, " "), instr, cpu.AC, cpu.X, cpu.Y, cpu.SP, Btoi(cpu.GetFlag(nes.NF)), Btoi(cpu.GetFlag(nes.OF)), Btoi(cpu.GetFlag(nes.DF)), Btoi(cpu.GetFlag(nes.IF)), Btoi(cpu.GetFlag(nes.ZF)), Btoi(cpu.GetFlag(nes.CF)))
-				// fmt.Println(cpu.RemCycles + 1)
-				for cpu.RemCycles > 0 {
+				// fmt.Printf("%04X %s  %-13s |%02X %02X %02X %02X|%1b%1b%1b%1b%1b%1b|", oldPc, strings.Join(instrBytes, " "), instr, bus.CPU.AC, bus.CPU.X, bus.CPU.Y, bus.CPU.SP, Btoi(bus.CPU.GetFlag(nes.NF)), Btoi(bus.CPU.GetFlag(nes.OF)), Btoi(bus.CPU.GetFlag(nes.DF)), Btoi(bus.CPU.GetFlag(nes.IF)), Btoi(bus.CPU.GetFlag(nes.ZF)), Btoi(bus.CPU.GetFlag(nes.CF)))
+				// fmt.Println(bus.CPU.RemCycles + 1)
+				for bus.CPU.RemCycles > 0 {
 					totalCycles++
-					cpu.Clock()
+					bus.CPU.Clock()
 				}
 
 			}

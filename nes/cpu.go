@@ -21,7 +21,7 @@ type instructionAndAddrMode struct {
 	cycles int
 }
 type CPU struct {
-	Bus *BUS
+	Bus *NesSystem
 	AC  uint8  //accumulator register
 	X   uint8  //index register
 	Y   uint8  //index register
@@ -35,7 +35,7 @@ type CPU struct {
 	instructionTable [256]instructionAndAddrMode //maps first instruction byte to instruction function
 }
 
-func CreateCPU(bus *BUS) *CPU {
+func CreateCPU(bus *NesSystem) *CPU {
 	cpu := new(CPU)
 	cpu.populateInstructionTable()
 	cpu.Bus = bus
@@ -65,8 +65,8 @@ func (a *CPU) populateInstructionTable() {
 // Returns 2 bytes: addr and addr + 1
 // swaps bytes due to little endian encoding, returns 16 bit number
 func (cpu *CPU) Get2Bytes(addr uint16) uint16 {
-	lowerByte := uint16(cpu.Bus.GetByte(addr))
-	upperByte := uint16(cpu.Bus.GetByte(addr + 1))
+	lowerByte := uint16(cpu.Bus.GetCPUByte(addr))
+	upperByte := uint16(cpu.Bus.GetCPUByte(addr + 1))
 	return (upperByte << 8) | lowerByte
 }
 
@@ -97,7 +97,7 @@ func setBit(number uint8, bit uint8, value bool) uint8 {
 }
 
 // pushes word 16bits to stack in order HB-LB
-func (cpu *CPU) pusWord(val uint16) {
+func (cpu *CPU) pushWord(val uint16) {
 	cpu.pushByte(uint8(val >> 8))
 	cpu.pushByte(uint8(val))
 }
@@ -112,14 +112,14 @@ func (cpu *CPU) popWord() uint16 {
 
 // pushes to stack
 func (cpu *CPU) pushByte(val uint8) {
-	cpu.Bus.SetByte(0x100+uint16(cpu.SP), val)
+	cpu.Bus.SetCPUByte(0x100+uint16(cpu.SP), val)
 	cpu.SP--
 }
 
 // pops from the stack
 func (cpu *CPU) popByte() uint8 {
 	cpu.SP++
-	return cpu.Bus.GetByte(0x100 + uint16(cpu.SP))
+	return cpu.Bus.GetCPUByte(0x100 + uint16(cpu.SP))
 }
 
 /*
@@ -132,7 +132,7 @@ func (cpu *CPU) implied() bool {
 
 // add x to immediate zero page address then read the address stored at that location in memory
 func (cpu *CPU) indexIndirect() bool {
-	operandAddr := cpu.Bus.GetByte(cpu.PC)
+	operandAddr := cpu.Bus.GetCPUByte(cpu.PC)
 	cpu.OperandAddr = cpu.Get2Bytes(uint16(operandAddr + cpu.X))
 	cpu.PC++
 	return false
@@ -140,7 +140,7 @@ func (cpu *CPU) indexIndirect() bool {
 
 // operand is the byte after the instruction byte (zero page address)
 func (cpu *CPU) zeroPage() bool {
-	cpu.OperandAddr = uint16(cpu.Bus.GetByte(cpu.PC))
+	cpu.OperandAddr = uint16(cpu.Bus.GetCPUByte(cpu.PC))
 	cpu.PC++
 	return false
 }
@@ -167,7 +167,7 @@ func (cpu *CPU) absolute() bool {
 
 // operand is the PC + single byte specified after instruction (signed)
 func (cpu *CPU) relative() bool {
-	offset := uint16(cpu.Bus.GetByte(cpu.PC))
+	offset := uint16(cpu.Bus.GetCPUByte(cpu.PC))
 	cpu.PC++
 	if offset&0x80 > 0 { //if negative
 		offset |= 0xFF00 //since we cast to a uint16, if the uint8 was negative, we need to set all the bits in the high byte to 1
@@ -180,7 +180,7 @@ func (cpu *CPU) relative() bool {
 // that location + Y
 // can take an extra cycle if the read crosses a page boundary
 func (cpu *CPU) indirectIndex() bool {
-	indirectAddr := cpu.Bus.GetByte(cpu.PC)
+	indirectAddr := cpu.Bus.GetCPUByte(cpu.PC)
 	absAddr := cpu.Get2Bytes(uint16(indirectAddr))
 	cpu.OperandAddr = absAddr + uint16(cpu.Y)
 	cpu.PC++
@@ -189,14 +189,14 @@ func (cpu *CPU) indirectIndex() bool {
 
 // operand becomes immediate 1 byte value + x
 func (cpu *CPU) zeroPageX() bool {
-	cpu.OperandAddr = uint16(cpu.X + cpu.Bus.GetByte(cpu.PC)) //since both operands are uint8 it will drop the carry
+	cpu.OperandAddr = uint16(cpu.X + cpu.Bus.GetCPUByte(cpu.PC)) //since both operands are uint8 it will drop the carry
 	cpu.PC++
 	return false
 }
 
 // operand becomes immediate 1 byte value + Y
 func (cpu *CPU) zeroPageY() bool {
-	cpu.OperandAddr = uint16(cpu.Y + cpu.Bus.GetByte(cpu.PC)) //since both oeprands are uint8 it will drop the carry
+	cpu.OperandAddr = uint16(cpu.Y + cpu.Bus.GetCPUByte(cpu.PC)) //since both oeprands are uint8 it will drop the carry
 	cpu.PC++
 	return false
 }
@@ -239,7 +239,7 @@ func (cpu *CPU) indirect() bool {
 	if lowByteAddr&0x00FF == 0x00FF { //if a page boundary needs to be crossed when incrementing
 		highByteAddr = lowByteAddr & 0xFF00 //simulate the low byte of the target addr overflowing and the upper byte not adding the carry
 	}
-	cpu.OperandAddr = uint16(cpu.Bus.GetByte(lowByteAddr)) | (uint16(cpu.Bus.GetByte(highByteAddr)) << 8) //combine low and high byte
+	cpu.OperandAddr = uint16(cpu.Bus.GetCPUByte(lowByteAddr)) | (uint16(cpu.Bus.GetCPUByte(highByteAddr)) << 8) //combine low and high byte
 	cpu.PC += 2
 	return false
 }
@@ -275,23 +275,23 @@ func (cpu *CPU) adcValue(value uint8) bool {
 // NOTE: Ignoring Decimal Mode since the NES doesn't support it
 func (cpu *CPU) adc() bool {
 	//call the core function with the memory value
-	return cpu.adcValue(cpu.Bus.GetByte(cpu.OperandAddr))
+	return cpu.adcValue(cpu.Bus.GetCPUByte(cpu.OperandAddr))
 
 }
 
 // sets accumulator to accumulator & value
 func (cpu *CPU) and() bool {
-	cpu.AC = cpu.AC & cpu.Bus.GetByte(cpu.OperandAddr)
+	cpu.AC = cpu.AC & cpu.Bus.GetCPUByte(cpu.OperandAddr)
 	cpu.setNZFlags(cpu.AC)
 	return true
 }
 
 // shift left one bit (memory)
 func (cpu *CPU) asl() bool {
-	value := cpu.Bus.GetByte(cpu.OperandAddr)
+	value := cpu.Bus.GetCPUByte(cpu.OperandAddr)
 	cpu.setFlag(CF, value&0x80 > 0) //set CF to bit 7 since it is the bit being shifted out
 	value <<= 1
-	cpu.Bus.SetByte(cpu.OperandAddr, value)
+	cpu.Bus.SetCPUByte(cpu.OperandAddr, value)
 	cpu.setNZFlags(value)
 	return false
 
@@ -341,7 +341,7 @@ func (cpu *CPU) beq() bool {
 
 func (cpu *CPU) bit() bool {
 	cpu.SR &= 0b00111111 //clear bits 7 and 6
-	operand := cpu.Bus.GetByte(cpu.OperandAddr)
+	operand := cpu.Bus.GetCPUByte(cpu.OperandAddr)
 	cpu.SR |= (operand & 0b11000000) //set bits 7 and 6 of SR to bits 7 and 6 of operand
 	cpu.setFlag(ZF, operand&cpu.AC == 0)
 	return false
@@ -440,25 +440,25 @@ func (cpu *CPU) compareFunc(register uint8, value uint8) bool {
 
 // compare memory to accumulator
 func (cpu *CPU) cmp() bool {
-	return cpu.compareFunc(cpu.AC, cpu.Bus.GetByte(cpu.OperandAddr))
+	return cpu.compareFunc(cpu.AC, cpu.Bus.GetCPUByte(cpu.OperandAddr))
 }
 
 // compare memory with X
 func (cpu *CPU) cpx() bool {
-	return cpu.compareFunc(cpu.X, cpu.Bus.GetByte(cpu.OperandAddr))
+	return cpu.compareFunc(cpu.X, cpu.Bus.GetCPUByte(cpu.OperandAddr))
 }
 
 // compare memory to Y
 func (cpu *CPU) cpy() bool {
-	return cpu.compareFunc(cpu.Y, cpu.Bus.GetByte(cpu.OperandAddr))
+	return cpu.compareFunc(cpu.Y, cpu.Bus.GetCPUByte(cpu.OperandAddr))
 }
 
 // decrement memory by 1
 func (cpu *CPU) dec() bool {
-	value := cpu.Bus.GetByte(cpu.OperandAddr)
+	value := cpu.Bus.GetCPUByte(cpu.OperandAddr)
 	value--
 	cpu.setNZFlags(value)
-	cpu.Bus.SetByte(cpu.OperandAddr, value)
+	cpu.Bus.SetCPUByte(cpu.OperandAddr, value)
 	return false
 
 }
@@ -481,17 +481,17 @@ func (cpu *CPU) dey() bool {
 
 // eor with value from memory
 func (cpu *CPU) eor() bool {
-	cpu.AC ^= cpu.Bus.GetByte(cpu.OperandAddr)
+	cpu.AC ^= cpu.Bus.GetCPUByte(cpu.OperandAddr)
 	cpu.setNZFlags(cpu.AC)
 	return true
 }
 
 // increment memory by 1
 func (cpu *CPU) inc() bool {
-	value := cpu.Bus.GetByte(cpu.OperandAddr)
+	value := cpu.Bus.GetCPUByte(cpu.OperandAddr)
 	value++
 	cpu.setNZFlags(value)
-	cpu.Bus.SetByte(cpu.OperandAddr, value)
+	cpu.Bus.SetCPUByte(cpu.OperandAddr, value)
 	return false
 
 }
@@ -531,33 +531,33 @@ func (cpu *CPU) jsr() bool {
 
 // load memory into Accumulator
 func (cpu *CPU) lda() bool {
-	cpu.AC = cpu.Bus.GetByte(cpu.OperandAddr)
+	cpu.AC = cpu.Bus.GetCPUByte(cpu.OperandAddr)
 	cpu.setNZFlags(cpu.AC)
 	return true
 }
 
 // load memory into register X
 func (cpu *CPU) ldx() bool {
-	cpu.X = cpu.Bus.GetByte(cpu.OperandAddr)
+	cpu.X = cpu.Bus.GetCPUByte(cpu.OperandAddr)
 	cpu.setNZFlags(cpu.X)
 	return true
 }
 
 // load memory into register Y
 func (cpu *CPU) ldy() bool {
-	cpu.Y = cpu.Bus.GetByte(cpu.OperandAddr)
+	cpu.Y = cpu.Bus.GetCPUByte(cpu.OperandAddr)
 	cpu.setNZFlags(cpu.Y)
 	return true
 }
 
 // logical shift right with memory
 func (cpu *CPU) lsr() bool {
-	value := cpu.Bus.GetByte(cpu.OperandAddr)
+	value := cpu.Bus.GetCPUByte(cpu.OperandAddr)
 	cpu.setFlag(CF, value&0x1 > 0)
 	newValue := value >> 1
 	cpu.setFlag(NF, false)
 	cpu.setFlag(ZF, newValue == 0)
-	cpu.Bus.SetByte(cpu.OperandAddr, newValue)
+	cpu.Bus.SetCPUByte(cpu.OperandAddr, newValue)
 	return false
 
 }
@@ -578,7 +578,7 @@ func (cpu *CPU) nop() bool {
 
 // ora with value in memory
 func (cpu *CPU) ora() bool {
-	cpu.AC |= cpu.Bus.GetByte(cpu.OperandAddr)
+	cpu.AC |= cpu.Bus.GetCPUByte(cpu.OperandAddr)
 	cpu.setNZFlags(cpu.AC)
 	return true
 }
@@ -614,12 +614,12 @@ func (cpu *CPU) plp() bool {
 
 // rotate one bit left memory
 func (cpu *CPU) rol() bool {
-	value := cpu.Bus.GetByte(cpu.OperandAddr)
+	value := cpu.Bus.GetCPUByte(cpu.OperandAddr)
 	newCF := value&0x80 > 0 //store bit being shifted out into CF
 	value <<= 1
 	value = setBit(value, 0, cpu.GetFlag(CF)) //perform the rotate
 	cpu.setFlag(CF, newCF)
-	cpu.Bus.SetByte(cpu.OperandAddr, value)
+	cpu.Bus.SetCPUByte(cpu.OperandAddr, value)
 	cpu.setNZFlags(value)
 	return false
 }
@@ -637,12 +637,12 @@ func (cpu *CPU) rolA() bool {
 
 // rotate one bit right memory
 func (cpu *CPU) ror() bool {
-	value := cpu.Bus.GetByte(cpu.OperandAddr)
+	value := cpu.Bus.GetCPUByte(cpu.OperandAddr)
 	newCF := value&0x1 > 0 //store bit being shifted out into CF
 	value >>= 1
 	value = setBit(value, 7, cpu.GetFlag(CF)) //perform the rotate
 	cpu.setFlag(CF, newCF)
-	cpu.Bus.SetByte(cpu.OperandAddr, value)
+	cpu.Bus.SetCPUByte(cpu.OperandAddr, value)
 	cpu.setNZFlags(value)
 	return false
 }
@@ -686,7 +686,7 @@ func (cpu *CPU) rts() bool {
 // since ADC adds the carry value
 // This means to get proper subtraction, you must first set the carry flag using SEC
 func (cpu *CPU) sbc() bool {
-	return cpu.adcValue(^cpu.Bus.GetByte(cpu.OperandAddr))
+	return cpu.adcValue(^cpu.Bus.GetCPUByte(cpu.OperandAddr))
 
 }
 
@@ -714,21 +714,21 @@ func (cpu *CPU) sei() bool {
 
 // store accumulator in memory
 func (cpu *CPU) sta() bool {
-	cpu.Bus.SetByte(cpu.OperandAddr, cpu.AC)
+	cpu.Bus.SetCPUByte(cpu.OperandAddr, cpu.AC)
 	return false
 
 }
 
 // store index X in memory
 func (cpu *CPU) stx() bool {
-	cpu.Bus.SetByte(cpu.OperandAddr, cpu.X)
+	cpu.Bus.SetCPUByte(cpu.OperandAddr, cpu.X)
 	return false
 
 }
 
 // store index Y in memory
 func (cpu *CPU) sty() bool {
-	cpu.Bus.SetByte(cpu.OperandAddr, cpu.Y)
+	cpu.Bus.SetCPUByte(cpu.OperandAddr, cpu.Y)
 	return false
 
 }
@@ -784,7 +784,7 @@ func (cpu *CPU) tya() bool {
 // interrupt pushes the program counter to the stack
 // order HB-LB, followed by the value of the status register,
 func (cpu *CPU) interrupt() {
-	cpu.pusWord(cpu.PC)   // push cpu
+	cpu.pushWord(cpu.PC)  // push cpu
 	cpu.pushByte(cpu.SR)  //push SR
 	cpu.setFlag(IF, true) //set interrupt disable flag
 }
@@ -821,7 +821,7 @@ func (cpu *CPU) Reset() {
 func (cpu *CPU) Clock() {
 	if cpu.RemCycles == 0 {
 		//decode instruction
-		instruction := cpu.instructionTable[cpu.Bus.GetByte(cpu.PC)]
+		instruction := cpu.instructionTable[cpu.Bus.GetCPUByte(cpu.PC)]
 		cpu.RemCycles = instruction.cycles
 		//increment program counter
 		cpu.PC++
