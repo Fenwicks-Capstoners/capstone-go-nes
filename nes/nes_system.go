@@ -8,9 +8,10 @@ type NesSystem struct {
 	Memory []uint8    // 2 kilobyte internal ram
 	Cart   *Cartridge //cartridge
 	CPU    *CPU
+	PPU    *PPU
 }
 
-func CreateBus(romPath string) (*NesSystem, error) {
+func CreateNES(romPath string) (*NesSystem, error) {
 	bus := new(NesSystem)
 	cart, err := CreateCart(romPath)
 	if err != nil {
@@ -19,7 +20,17 @@ func CreateBus(romPath string) (*NesSystem, error) {
 	bus.Cart = cart
 	bus.CPU = CreateCPU(bus)
 	bus.Memory = make([]uint8, MemorySize) //initalize ram
+	bus.PPU = CreatePPU(bus)
 	return bus, nil
+}
+
+func (bus *NesSystem) ClockSystem() {
+	//ppu clocked 3x as often as CPU
+
+	bus.CPU.Clock()
+	bus.PPU.ClockPPU()
+	bus.PPU.ClockPPU()
+	bus.PPU.ClockPPU()
 }
 
 func (bus *NesSystem) GetCPUByte(addr uint16) uint8 {
@@ -32,7 +43,7 @@ func (bus *NesSystem) GetCPUByte(addr uint16) uint8 {
 	//NES PPU Registers
 	if addr <= 0x3FFF {
 		// TODO
-		return 0
+		return bus.PPU.Registers[(addr&0x2007)-0x2000]
 	}
 	//NES APU and I/O registers
 	if addr <= 0x4017 {
@@ -62,6 +73,7 @@ func (bus *NesSystem) SetCPUByte(addr uint16, value uint8) {
 	//NES PPU Registers
 	if addr <= 0x3FFF {
 		// TODO
+		bus.PPU.Registers[(addr&0x2007)-0x2000] = value
 		return
 	}
 	//NES APU and I/O registers

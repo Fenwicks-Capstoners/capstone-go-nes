@@ -27,6 +27,7 @@ import (
 	"strings"
 
 	"github.com/MaxSmoot/NES_Emulator/nes"
+	"github.com/veandco/go-sdl2/sdl"
 )
 
 var bus *nes.NesSystem
@@ -333,6 +334,18 @@ func printCurrentInstr() {
 	fmt.Printf("0x%04X:\t%s |\tCycles left executing previous instruction: %d\n", bus.CPU.PC, instr, bus.CPU.RemCycles)
 }
 
+func initWindow() {
+	if err := sdl.Init(sdl.INIT_EVERYTHING); err != nil {
+		panic(err)
+	}
+	defer sdl.Quit()
+	window, err := sdl.CreateWindow("test", sdl.WINDOWPOS_UNDEFINED, sdl.WINDOWPOS_UNDEFINED, 800, 600, sdl.WINDOW_SHOWN)
+	if err != nil {
+		panic(err)
+	}
+	defer window.Destroy()
+}
+
 func main() {
 	romPath := flag.String("rom", "", "Path to .nes rom")
 	flag.Parse()
@@ -340,32 +353,17 @@ func main() {
 		fmt.Println("Must include a rom path. --rom=<Path to rom>")
 		os.Exit(1)
 	}
-	busObject, err := nes.CreateBus(*romPath)
+	busObject, err := nes.CreateNES(*romPath)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
 	bus = busObject //command line flags
-	// binaryPathStrPtr := flag.String("binary", "", "Path to binary to load")
-
-	// loadAddr, err := getNumberArgument(*addrStrPtr)
-	// if err != nil {
-	// 	fmt.Println("Invalid load address specified")
-	// 	return
-	// }
-	// if *binaryPathStrPtr == "" {
-	// 	fmt.Println("Missing path to binary")
-	// 	fmt.Println("Usage:\n--binary=<PATH_TO_BINARY> [--load=<address to load binary>]")
-	// 	os.Exit(1)
-	// }
-
-	// if !loadBinary(*binaryPathStrPtr, loadAddr) {
-	// 	fmt.Println(*binaryPathStrPtr + " could not be loaded")
-	// 	os.Exit(1)
-	// }
 
 	bus.CPU.Reset()
 	fmt.Println("Rom Loaded.\nAwaiting Input...")
+	initWindow()
+
 	scanner := bufio.NewScanner(os.Stdin)
 	input := ""
 	for {
@@ -383,13 +381,13 @@ func main() {
 		} else if tokens[0] == "clear" {
 			fmt.Print("\033[H\033[2J")
 		} else if tokens[0] == "ni" {
-			bus.CPU.Clock()
+			bus.ClockSystem()
 			for bus.CPU.RemCycles > 0 {
-				bus.CPU.Clock()
+				bus.ClockSystem()
 			}
 			printCurrentInstr()
 		} else if tokens[0] == "clock" {
-			bus.CPU.Clock()
+			bus.ClockSystem()
 			printCurrentInstr()
 		} else if tokens[0] == "quit" {
 			os.Exit(0)
