@@ -334,35 +334,25 @@ func printCurrentInstr() {
 }
 
 func main() {
-	romPath := flag.String("rom", "", "Path to .nes rom")
-	flag.Parse()
-	if *romPath == "" {
-		fmt.Println("Must include a rom path. --rom=<Path to rom>")
-		os.Exit(1)
-	}
-	busObject, err := nes.CreateBus(*romPath)
+	busObject, err := nes.CreateBus("")
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
 	bus = busObject //command line flags
-	// binaryPathStrPtr := flag.String("binary", "", "Path to binary to load")
+	binaryPathStrPtr := flag.String("binary", "", "Path to binary to load")
+	flag.Parse()
 
-	// loadAddr, err := getNumberArgument(*addrStrPtr)
-	// if err != nil {
-	// 	fmt.Println("Invalid load address specified")
-	// 	return
-	// }
-	// if *binaryPathStrPtr == "" {
-	// 	fmt.Println("Missing path to binary")
-	// 	fmt.Println("Usage:\n--binary=<PATH_TO_BINARY> [--load=<address to load binary>]")
-	// 	os.Exit(1)
-	// }
+	if *binaryPathStrPtr == "" {
+		fmt.Println("Missing path to binary")
+		fmt.Println("Usage:\n--binary=<PATH_TO_BINARY> [--load=<address to load binary>]")
+		os.Exit(1)
+	}
 
-	// if !loadBinary(*binaryPathStrPtr, loadAddr) {
-	// 	fmt.Println(*binaryPathStrPtr + " could not be loaded")
-	// 	os.Exit(1)
-	// }
+	if !loadBinary(*binaryPathStrPtr, 0x0) {
+		fmt.Println(*binaryPathStrPtr + " could not be loaded")
+		os.Exit(1)
+	}
 
 	bus.CPU.Reset()
 	fmt.Println("Rom Loaded.\nAwaiting Input...")

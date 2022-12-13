@@ -1,8 +1,6 @@
 package nes
 
-import "fmt"
-
-const MemorySize = 2048 //2 KB
+const MemorySize = 65536
 
 type NesSystem struct {
 	Memory []uint8    // 2 kilobyte internal ram
@@ -12,11 +10,11 @@ type NesSystem struct {
 
 func CreateBus(romPath string) (*NesSystem, error) {
 	bus := new(NesSystem)
-	cart, err := CreateCart(romPath)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't create bus, %s", err)
-	}
-	bus.Cart = cart
+	// cart, err := CreateCart(romPath)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("couldn't create bus, %s", err)
+	// }
+	// bus.Cart = cart
 	bus.CPU = CreateCPU(bus)
 	bus.Memory = make([]uint8, MemorySize) //initalize ram
 	return bus, nil
@@ -24,62 +22,10 @@ func CreateBus(romPath string) (*NesSystem, error) {
 
 func (bus *NesSystem) GetCPUByte(addr uint16) uint8 {
 	//internal RAM
-	if addr <= 0x1FFF {
-		//0x0000-0x07FF internal RAM
-		//0x0800 - 0x1FFF mirrored
-		return bus.Memory[addr&0x07FF] //same as % 0x800. x % 2^n == x & (2^n - 1)
-	}
-	//NES PPU Registers
-	if addr <= 0x3FFF {
-		// TODO
-		return 0
-	}
-	//NES APU and I/O registers
-	if addr <= 0x4017 {
-		// TODO
-		return 0
-	}
-	//APU and I/O functionality that is normally disabled
-	if addr <= 0x401f {
-		// TODO
-		return 0
-	}
-	//cartridge space
-	if addr <= 0xFFFF {
-		// TODO
-		return bus.Cart.GetCPUByte(addr)
-	}
-	panic("Unsporrted Address")
+	return bus.Memory[addr]
 }
 
 func (bus *NesSystem) SetCPUByte(addr uint16, value uint8) {
 	//internal RAM
-	if addr <= 0x1FFF {
-		//0x0000-0x07FF internal RAM
-		//0x0800 - 0x1FFF mirrored
-		bus.Memory[addr&0x07FF] = value //same as % 0x800. x % 2^n == x & (2^n - 1)
-	}
-	//NES PPU Registers
-	if addr <= 0x3FFF {
-		// TODO
-		return
-	}
-	//NES APU and I/O registers
-	if addr <= 0x4017 {
-		// TODO
-		return
-	}
-	//APU and I/O functionality that is normally disabled
-	if addr <= 0x401f {
-		// TODO
-		return
-	}
-	//cartridge space
-	if addr <= 0xFFFF {
-
-		// TODO
-		bus.Cart.SetCPUByte(addr, value)
-		return
-	}
-	panic("Unsporrted Address")
+	bus.Memory[addr] = value
 }
